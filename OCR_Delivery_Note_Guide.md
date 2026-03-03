@@ -40,6 +40,28 @@ Maximum file size: **10 MB**
 
 After processing, the file is automatically moved to an archive folder. A copy of the scan is also attached to any documents created from it, so you can always find the original.
 
+#### Adding the Folder to Your Phone Home Screen
+
+So you don't have to navigate through Drive every time:
+
+**Android:**
+1. Open the **Google Drive** app
+2. Navigate to the shared **OCR Delivery Notes** folder
+3. You should now be inside the folder (you'll see its contents, or it will be empty)
+4. Tap the **three dots** menu in the top-right corner of the screen
+5. Tap **Add to Home screen**
+6. A shortcut icon appears on your home screen — tap it to go straight to the folder
+
+**iPhone / iPad:**
+1. Open the **Google Drive** app
+2. Navigate to the shared **OCR Delivery Notes** folder
+3. You should now be inside the folder
+4. Tap the **three dots** menu in the top-right corner of the screen
+5. Tap **Add to Home Screen** (on newer iOS) or **Copy link**, then open Safari, paste the link, tap the **Share** button, and tap **Add to Home Screen**
+6. Name it something short like "DN Scans" and tap **Add**
+
+Now you can scan a delivery note, tap the home screen shortcut, and upload — all in a few seconds.
+
 ---
 
 ## Tips for Good Scans

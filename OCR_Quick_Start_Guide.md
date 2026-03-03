@@ -36,6 +36,28 @@ You can drop multiple files at once. Each one is processed separately. After pro
 
 **Tip:** If you're using a phone, use the "Scan" feature in Google Drive to create a clean PDF. If you accidentally take a regular photo instead, that works too — just drop the JPEG into the folder.
 
+#### Adding the Folder to Your Phone Home Screen
+
+So you don't have to navigate through Drive every time:
+
+**Android:**
+1. Open the **Google Drive** app
+2. Navigate to the shared **OCR Invoices** folder
+3. You should now be inside the folder (you'll see its contents, or it will be empty)
+4. Tap the **three dots (...)** in the top-right corner of the screen
+5. Tap **Add to Home screen**
+6. A shortcut icon appears on your home screen — tap it to go straight to the folder
+
+**iPhone / iPad:**
+1. Open the **Google Drive** app
+2. Navigate to the shared **OCR Invoices** folder
+3. You should now be inside the folder
+4. Tap the **three dots (...)** in the top-right corner of the screen
+5. Tap **Add to Home Screen** (on newer iOS) or **Copy link**, then open Safari, paste the link, tap the **Share** button, and tap **Add to Home Screen**
+6. Name it something short like "OCR Invoices" and tap **Add**
+
+Now you can scan a slip, tap the home screen shortcut, and upload — all in a few seconds.
+
 ### Option B: Email
 
 1. Forward the invoice email (with PDF or image attached) to the designated email address
