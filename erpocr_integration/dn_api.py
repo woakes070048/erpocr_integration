@@ -235,7 +235,7 @@ def update_ocr_dn_on_cancel(doc, method):
 		ocr_doc = frappe.get_doc("OCR Delivery Note", name)
 		ocr_doc.set(field, "")
 		ocr_doc.document_type = ""
-		ocr_doc.status = "Pending"  # _update_status() will recompute on save
+		ocr_doc.status = "Matched"  # _update_status() will recompute on save
 		ocr_doc.save(ignore_permissions=True)
 
 

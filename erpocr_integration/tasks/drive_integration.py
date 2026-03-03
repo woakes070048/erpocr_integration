@@ -573,32 +573,58 @@ def move_file_to_archive(
 			service, target_archive, supplier_name, invoice_date
 		)
 
-		# Get current parent(s) and link
+		# Get current parent(s), link, driveId, and name
 		file_info = (
 			service.files()
-			.get(fileId=file_id, fields="parents, webViewLink", supportsAllDrives=True)
+			.get(fileId=file_id, fields="parents, webViewLink, driveId, name", supportsAllDrives=True)
 			.execute()
 		)
 
 		previous_parents = ",".join(file_info.get("parents", []))
 		web_view_link = file_info.get("webViewLink")
+		source_drive_id = file_info.get("driveId")
 
-		# Move file: remove old parent(s), add archive folder
-		updated = (
-			service.files()
-			.update(
-				fileId=file_id,
-				addParents=target_folder_id,
-				removeParents=previous_parents,
-				supportsAllDrives=True,
-				fields="id, webViewLink",
-			)
-			.execute()
+		# Check if archive folder is on a different Shared Drive
+		archive_info = (
+			service.files().get(fileId=target_folder_id, fields="driveId", supportsAllDrives=True).execute()
 		)
+		target_drive_id = archive_info.get("driveId")
 
-		web_view_link = updated.get("webViewLink") or web_view_link
+		cross_drive = source_drive_id != target_drive_id and source_drive_id and target_drive_id
 
-		frappe.logger().info(f"Drive: Moved {file_id} to archive: {folder_path}")
+		if cross_drive:
+			# Cross-drive: copy to archive, then delete original
+			copied = (
+				service.files()
+				.copy(
+					fileId=file_id,
+					body={"name": file_info.get("name"), "parents": [target_folder_id]},
+					supportsAllDrives=True,
+					fields="id, webViewLink",
+				)
+				.execute()
+			)
+			new_file_id = copied.get("id") or file_id
+			web_view_link = copied.get("webViewLink") or web_view_link
+			# Delete original from source drive
+			service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
+			file_id = new_file_id  # Return the new copy's ID, not the deleted original
+			frappe.logger().info(f"Drive: Copied+deleted {file_id} across drives to archive: {folder_path}")
+		else:
+			# Same drive: simple move via addParents/removeParents
+			updated = (
+				service.files()
+				.update(
+					fileId=file_id,
+					addParents=target_folder_id,
+					removeParents=previous_parents,
+					supportsAllDrives=True,
+					fields="id, webViewLink",
+				)
+				.execute()
+			)
+			web_view_link = updated.get("webViewLink") or web_view_link
+			frappe.logger().info(f"Drive: Moved {file_id} to archive: {folder_path}")
 
 		return {"file_id": file_id, "shareable_link": web_view_link, "folder_path": folder_path}
 
@@ -807,6 +833,13 @@ def _process_dn_scan_file(service, file_info: dict, settings, queue_position: in
 		frappe.logger().info(f"DN Drive scan: Queued {filename} for DN processing")
 		return True
 	except Exception as e:
+		# Clean up orphaned File attachment before deleting the DN record
+		for f in frappe.get_all(
+			"File",
+			filters={"attached_to_doctype": "OCR Delivery Note", "attached_to_name": ocr_dn.name},
+			pluck="name",
+		):
+			frappe.delete_doc("File", f, force=True, ignore_permissions=True)
 		frappe.delete_doc("OCR Delivery Note", ocr_dn.name, force=True, ignore_permissions=True)
 		frappe.db.commit()  # nosemgrep
 		frappe.log_error(

@@ -284,7 +284,7 @@ class TestDocEvents:
 
 		assert mock_dn.purchase_order_result == ""
 		assert mock_dn.document_type == ""
-		assert mock_dn.status == "Pending"
+		assert mock_dn.status == "Matched"
 
 	def test_on_cancel_pr_clears_link(self, mock_frappe):
 		"""PR cancel clears link and resets status."""
