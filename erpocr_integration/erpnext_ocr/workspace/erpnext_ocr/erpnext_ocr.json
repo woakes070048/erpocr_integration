@@ -5,7 +5,7 @@
 			"label": "OCR Imports by Status"
 		}
 	],
-	"content": "[{\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>OCR Import Overview</b></span>\",\"col\":12}},{\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending OCR Imports\",\"col\":3}},{\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Completed OCR Imports\",\"col\":3}},{\"type\":\"number_card\",\"data\":{\"number_card_name\":\"OCR Errors\",\"col\":3}},{\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Avg OCR Confidence\",\"col\":3}},{\"type\":\"chart\",\"data\":{\"chart_name\":\"OCR Imports by Status\",\"col\":12}},{\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Shortcuts</b></span>\",\"col\":12}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"OCR Import\",\"col\":4}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"OCR Settings\",\"col\":4}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Purchase Invoice\",\"col\":4}},{\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Configuration</b></span>\",\"col\":12}},{\"type\":\"card\",\"data\":{\"card_name\":\"OCR Records\",\"col\":4}},{\"type\":\"card\",\"data\":{\"card_name\":\"Matching & Aliases\",\"col\":4}},{\"type\":\"card\",\"data\":{\"card_name\":\"Settings\",\"col\":4}}]",
+	"content": "[{\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>OCR Import Overview</b></span>\",\"col\":12}},{\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending OCR Imports\",\"col\":3}},{\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Completed OCR Imports\",\"col\":3}},{\"type\":\"number_card\",\"data\":{\"number_card_name\":\"OCR Errors\",\"col\":3}},{\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Avg OCR Confidence\",\"col\":3}},{\"type\":\"chart\",\"data\":{\"chart_name\":\"OCR Imports by Status\",\"col\":12}},{\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Shortcuts</b></span>\",\"col\":12}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"OCR Import\",\"col\":3}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"OCR Delivery Note\",\"col\":3}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"OCR Fleet Slip\",\"col\":3}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"OCR Settings\",\"col\":3}},{\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Configuration</b></span>\",\"col\":12}},{\"type\":\"card\",\"data\":{\"card_name\":\"OCR Records\",\"col\":4}},{\"type\":\"card\",\"data\":{\"card_name\":\"Matching & Aliases\",\"col\":4}},{\"type\":\"card\",\"data\":{\"card_name\":\"Settings\",\"col\":4}}]",
 	"creation": "2025-01-01 00:00:00.000000",
 	"custom_blocks": [],
 	"doctype": "Workspace",
@@ -25,6 +25,18 @@
 			"link_to": "OCR Import",
 			"link_type": "DocType",
 			"onboard": 1,
+			"type": "Link"
+		},
+		{
+			"label": "OCR Delivery Note",
+			"link_to": "OCR Delivery Note",
+			"link_type": "DocType",
+			"type": "Link"
+		},
+		{
+			"label": "OCR Fleet Slip",
+			"link_to": "OCR Fleet Slip",
+			"link_type": "DocType",
 			"type": "Link"
 		},
 		{
@@ -95,6 +107,20 @@
 			"label": "OCR Import",
 			"link_to": "OCR Import",
 			"stats_filter": "",
+			"type": "DocType"
+		},
+		{
+			"color": "#FF8A65",
+			"doc_view": "List",
+			"label": "OCR Delivery Note",
+			"link_to": "OCR Delivery Note",
+			"type": "DocType"
+		},
+		{
+			"color": "#FFB74D",
+			"doc_view": "List",
+			"label": "OCR Fleet Slip",
+			"link_to": "OCR Fleet Slip",
 			"type": "DocType"
 		},
 		{

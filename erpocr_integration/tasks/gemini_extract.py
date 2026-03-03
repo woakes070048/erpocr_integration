@@ -652,3 +652,274 @@ def _transform_to_dn_format(gemini_data: dict, filename: str) -> dict:
 		"line_items": line_items,
 		"source_filename": filename,
 	}
+
+
+# ---------------------------------------------------------------------------
+# Fleet Slip extraction
+# ---------------------------------------------------------------------------
+
+
+def extract_fleet_slip_data(pdf_content: bytes, filename: str, mime_type: str = "application/pdf") -> dict:
+	"""
+	Extract fleet slip data (fuel/toll) from a scan using Gemini API.
+
+	Each scan produces exactly one fleet slip (no multi-document support).
+	Returns a single dict with extracted fields — no line items (single transaction).
+
+	Args:
+		pdf_content: Raw file bytes (PDF or image)
+		filename: Original filename for logging
+		mime_type: MIME type for Gemini API
+
+	Returns:
+		dict with "header_fields", "fuel_details", "toll_details",
+		"raw_response", "extraction_time", "source_filename"
+
+	Raises:
+		Exception: If API call fails or returns invalid data
+	"""
+	start_time = time.time()
+
+	settings = frappe.get_single("OCR Settings")
+	api_key = settings.get_password("gemini_api_key")
+	if not api_key:
+		frappe.throw(_("Gemini API key not configured in OCR Settings"))
+
+	model = settings.gemini_model or "gemini-2.5-flash"
+
+	prompt = _build_fleet_extraction_prompt()
+	schema = _build_fleet_extraction_schema()
+
+	try:
+		response_data = _call_gemini_api(pdf_content, prompt, schema, api_key, model, mime_type)
+	except Exception as e:
+		frappe.log_error(
+			title="Gemini API Error (Fleet)",
+			message=f"Gemini API call failed for fleet slip {filename}\n{frappe.get_traceback()}",
+		)
+		raise Exception(f"Failed to call Gemini API: {e!s}") from e
+
+	is_valid, error_msg = _validate_gemini_response(response_data)
+	if not is_valid:
+		truncated = json.dumps(response_data, indent=2)[:500]
+		frappe.log_error(
+			title="Invalid Gemini Response (Fleet)",
+			message=f"Invalid Gemini response for fleet slip {filename}\n{error_msg}\n{truncated}...",
+		)
+		raise Exception(f"Invalid Gemini response: {error_msg}")
+
+	try:
+		candidates = response_data.get("candidates", [])
+		content = candidates[0].get("content", {})
+		parts = content.get("parts", [])
+		text = parts[0].get("text", "")
+		extracted_data = json.loads(text)
+	except Exception as e:
+		truncated = json.dumps(response_data, indent=2)[:500]
+		frappe.log_error(
+			title="Gemini Parse Error (Fleet)",
+			message=f"Failed to parse Gemini fleet slip response for {filename}\n{frappe.get_traceback()}\n{truncated}...",
+		)
+		raise Exception(f"Failed to parse Gemini response: {e!s}") from e
+
+	raw_response = json.dumps(response_data, indent=2)
+	extraction_time = time.time() - start_time
+
+	result = _transform_to_fleet_format(extracted_data, filename)
+	result["raw_response"] = raw_response
+	result["extraction_time"] = extraction_time
+
+	return result
+
+
+def _build_fleet_extraction_prompt() -> str:
+	"""Construct prompt for Gemini API fleet slip extraction (fuel/toll)."""
+	return """Analyze this image or document. It is a receipt or transaction slip from a fleet vehicle — typically a fuel slip from a petrol station, a toll slip from a highway toll plaza, or another type of purchase slip.
+
+**Classify the slip type:**
+- "Fuel" — petrol station receipt showing fuel purchase (diesel, petrol, etc.)
+- "Toll" — toll plaza receipt showing a toll charge
+- "Other" — any other type of purchase (food, drinks, car wash, accessories, etc.)
+
+**Extract the following information:**
+
+**Transaction Details:**
+- Merchant/station name (the business name on the slip)
+- Transaction date (format: YYYY-MM-DD)
+- Total amount paid (the final amount including any VAT)
+- VAT amount (if shown separately on the slip, otherwise 0)
+- Currency (e.g., ZAR, USD — infer from context if not explicit)
+
+**Vehicle Information:**
+- Vehicle registration / number plate (if visible on the slip — often printed on fuel receipts)
+
+**Description:**
+- A brief description of what was purchased (e.g., "50L Diesel", "N1 Toll", "Snacks and drinks")
+
+**For Fuel slips only:**
+- Number of litres dispensed
+- Price per litre
+- Fuel type (Diesel, Petrol, 95 Unleaded, 93 Unleaded, LRP, etc.)
+- Odometer reading (if printed on the slip)
+
+**For Toll slips only:**
+- Toll plaza name
+- Route or highway name (e.g., N1, N2, R21)
+
+**Important Instructions:**
+- This is a SINGLE transaction per scan
+- Return the date in YYYY-MM-DD format
+- Return all amounts as numeric values WITHOUT currency symbols
+- If a field is not found or not visible, return an empty string (for text) or 0 (for numbers)
+- Be precise with amounts and quantities — do not round
+- For fuel slips, the vehicle registration is often printed at the top of the receipt
+- South African diesel does NOT have VAT — if this is a diesel purchase, set vat_amount to 0
+
+**Confidence Rating:**
+Rate your overall extraction confidence from 0.0 to 1.0.
+
+Return the extracted data as structured JSON matching the provided schema."""
+
+
+def _build_fleet_extraction_schema() -> dict:
+	"""Build JSON schema for Gemini structured output — fleet slip format."""
+	return {
+		"type": "object",
+		"properties": {
+			"slip_type": {
+				"type": "string",
+				"description": "Classification: Fuel, Toll, or Other",
+			},
+			"merchant_name": {
+				"type": "string",
+				"description": "Merchant/station/plaza name",
+			},
+			"transaction_date": {
+				"type": "string",
+				"description": "Transaction date in YYYY-MM-DD format",
+			},
+			"vehicle_registration": {
+				"type": "string",
+				"description": "Vehicle registration/number plate (empty if not visible)",
+			},
+			"total_amount": {
+				"type": "number",
+				"description": "Total amount paid",
+			},
+			"vat_amount": {
+				"type": "number",
+				"description": "VAT amount if shown separately (0 if not shown or not applicable)",
+			},
+			"currency": {
+				"type": "string",
+				"description": "Currency code (e.g., ZAR)",
+			},
+			"confidence": {
+				"type": "number",
+				"description": "Overall extraction confidence from 0.0 to 1.0",
+			},
+			"description": {
+				"type": "string",
+				"description": "Brief description of the purchase",
+			},
+			"fuel_details": {
+				"type": "object",
+				"description": "Fuel-specific details (only relevant for Fuel slips)",
+				"properties": {
+					"litres": {
+						"type": "number",
+						"description": "Number of litres dispensed (0 if not applicable)",
+					},
+					"price_per_litre": {
+						"type": "number",
+						"description": "Price per litre (0 if not applicable)",
+					},
+					"fuel_type": {
+						"type": "string",
+						"description": "Fuel type: Diesel, Petrol, 95 Unleaded, etc.",
+					},
+					"odometer_reading": {
+						"type": "number",
+						"description": "Odometer reading if printed (0 if not visible)",
+					},
+				},
+				"required": ["litres", "price_per_litre", "fuel_type", "odometer_reading"],
+			},
+			"toll_details": {
+				"type": "object",
+				"description": "Toll-specific details (only relevant for Toll slips)",
+				"properties": {
+					"toll_plaza_name": {
+						"type": "string",
+						"description": "Name of the toll plaza",
+					},
+					"route": {
+						"type": "string",
+						"description": "Highway/route name (e.g., N1, N2)",
+					},
+				},
+				"required": ["toll_plaza_name", "route"],
+			},
+		},
+		"required": [
+			"slip_type",
+			"merchant_name",
+			"transaction_date",
+			"vehicle_registration",
+			"total_amount",
+			"vat_amount",
+			"currency",
+			"confidence",
+			"description",
+			"fuel_details",
+			"toll_details",
+		],
+	}
+
+
+def _transform_to_fleet_format(gemini_data: dict, filename: str) -> dict:
+	"""Transform Gemini response to OCR Fleet Slip dict format."""
+	from erpocr_integration.tasks.process_import import _clean_ocr_text, _parse_date
+
+	# Normalize slip_type
+	raw_slip_type = _clean_ocr_text(gemini_data.get("slip_type", ""))
+	slip_type = ""
+	if raw_slip_type.lower() in ("fuel", "petrol", "diesel"):
+		slip_type = "Fuel"
+	elif raw_slip_type.lower() in ("toll", "tolls"):
+		slip_type = "Toll"
+	elif raw_slip_type:
+		slip_type = "Other"
+
+	header_fields = {
+		"slip_type": slip_type,
+		"merchant_name": _clean_ocr_text(gemini_data.get("merchant_name", "")),
+		"transaction_date": _parse_date(gemini_data.get("transaction_date", "")),
+		"vehicle_registration": _clean_ocr_text(gemini_data.get("vehicle_registration", "")).upper(),
+		"total_amount": gemini_data.get("total_amount") or 0.0,
+		"vat_amount": gemini_data.get("vat_amount") or 0.0,
+		"currency": (gemini_data.get("currency") or "").upper().strip(),
+		"confidence": gemini_data.get("confidence", 0.0),
+		"description": _clean_ocr_text(gemini_data.get("description", "")),
+	}
+
+	fuel_details = gemini_data.get("fuel_details") or {}
+	fuel = {
+		"litres": fuel_details.get("litres") or 0.0,
+		"price_per_litre": fuel_details.get("price_per_litre") or 0.0,
+		"fuel_type": _clean_ocr_text(fuel_details.get("fuel_type", "")),
+		"odometer_reading": fuel_details.get("odometer_reading") or 0.0,
+	}
+
+	toll_details = gemini_data.get("toll_details") or {}
+	toll = {
+		"toll_plaza_name": _clean_ocr_text(toll_details.get("toll_plaza_name", "")),
+		"route": _clean_ocr_text(toll_details.get("route", "")),
+	}
+
+	return {
+		"header_fields": header_fields,
+		"fuel_details": fuel,
+		"toll_details": toll,
+		"source_filename": filename,
+	}

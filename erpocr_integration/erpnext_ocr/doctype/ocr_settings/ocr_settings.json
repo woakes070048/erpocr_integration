@@ -32,7 +32,14 @@
 		"dn_scan_folder_id",
 		"column_break_dn",
 		"dn_archive_folder_id",
-		"dn_default_warehouse"
+		"dn_default_warehouse",
+		"section_break_fleet",
+		"fleet_scan_folder_id",
+		"fleet_fuel_item",
+		"fleet_toll_item",
+		"column_break_fleet",
+		"fleet_expense_account",
+		"fleet_credit_account"
 	],
 	"fields": [
 		{
@@ -218,6 +225,51 @@
 			"label": "DN Default Warehouse",
 			"options": "Warehouse",
 			"description": "Default warehouse for Purchase Receipts created from delivery note scans"
+		},
+		{
+			"fieldname": "section_break_fleet",
+			"fieldtype": "Section Break",
+			"label": "Fleet Slip Scanning",
+			"description": "Configure Google Drive folder polling for fleet slip scans (fuel, toll) from drivers"
+		},
+		{
+			"depends_on": "eval:doc.drive_integration_enabled",
+			"fieldname": "fleet_scan_folder_id",
+			"fieldtype": "Data",
+			"label": "Fleet Scan Inbox Folder ID",
+			"description": "Drive folder where fleet slip scans are dropped (checked every 15 minutes)"
+		},
+		{
+			"fieldname": "fleet_fuel_item",
+			"fieldtype": "Link",
+			"label": "Fleet Fuel Item",
+			"options": "Item",
+			"description": "Default non-stock item for fuel slip Purchase Invoices and Journal Entries"
+		},
+		{
+			"fieldname": "fleet_toll_item",
+			"fieldtype": "Link",
+			"label": "Fleet Toll Item",
+			"options": "Item",
+			"description": "Default non-stock item for toll slip Purchase Invoices and Journal Entries"
+		},
+		{
+			"fieldname": "column_break_fleet",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "fleet_expense_account",
+			"fieldtype": "Link",
+			"label": "Fleet Expense Account",
+			"options": "Account",
+			"description": "Default expense account for fleet slip Journal Entries (direct expense mode)"
+		},
+		{
+			"fieldname": "fleet_credit_account",
+			"fieldtype": "Link",
+			"label": "Fleet Credit Account",
+			"options": "Account",
+			"description": "Default credit account for fleet slip Journal Entries (e.g., Bank, Petty Cash)"
 		}
 	],
 	"index_web_pages_for_search": 1,

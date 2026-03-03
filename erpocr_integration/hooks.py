@@ -20,6 +20,7 @@ app_license = "GNU GPLv3"
 doctype_js = {
 	"OCR Import": "public/js/ocr_import.js",
 	"OCR Delivery Note": "public/js/ocr_delivery_note.js",
+	"OCR Fleet Slip": "public/js/ocr_fleet_slip.js",
 }
 # doctype_list_js = {"DocType": "public/js/doctype_list.js"}
 
@@ -68,8 +69,14 @@ doctype_js = {
 
 doc_events = {
 	"Purchase Invoice": {
-		"on_submit": "erpocr_integration.api.update_ocr_import_on_submit",
-		"on_cancel": "erpocr_integration.api.update_ocr_import_on_cancel",
+		"on_submit": [
+			"erpocr_integration.api.update_ocr_import_on_submit",
+			"erpocr_integration.fleet_api.update_ocr_fleet_on_submit",
+		],
+		"on_cancel": [
+			"erpocr_integration.api.update_ocr_import_on_cancel",
+			"erpocr_integration.fleet_api.update_ocr_fleet_on_cancel",
+		],
 	},
 	"Purchase Receipt": {
 		"on_submit": [
@@ -86,8 +93,14 @@ doc_events = {
 		"on_cancel": "erpocr_integration.dn_api.update_ocr_dn_on_cancel",
 	},
 	"Journal Entry": {
-		"on_submit": "erpocr_integration.api.update_ocr_import_on_submit",
-		"on_cancel": "erpocr_integration.api.update_ocr_import_on_cancel",
+		"on_submit": [
+			"erpocr_integration.api.update_ocr_import_on_submit",
+			"erpocr_integration.fleet_api.update_ocr_fleet_on_submit",
+		],
+		"on_cancel": [
+			"erpocr_integration.api.update_ocr_import_on_cancel",
+			"erpocr_integration.fleet_api.update_ocr_fleet_on_cancel",
+		],
 	},
 }
 
@@ -100,6 +113,7 @@ scheduler_events = {
 		"*/15 * * * *": [
 			"erpocr_integration.tasks.drive_integration.poll_drive_scan_folder",
 			"erpocr_integration.tasks.drive_integration.poll_drive_dn_folder",
+			"erpocr_integration.tasks.drive_integration.poll_drive_fleet_folder",
 		]
 	},
 }
@@ -132,4 +146,5 @@ fixtures = [
 	{"dt": "Role", "filters": [["name", "=", "OCR Manager"]]},
 	{"dt": "Number Card", "filters": [["module", "=", "ERPNext OCR"]]},
 	{"dt": "Dashboard Chart", "filters": [["module", "=", "ERPNext OCR"]]},
+	{"dt": "Custom Field", "filters": [["name", "like", "Fleet Vehicle-custom_%"]]},
 ]

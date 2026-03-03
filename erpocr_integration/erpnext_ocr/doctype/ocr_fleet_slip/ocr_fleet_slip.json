@@ -1,0 +1,455 @@
+{
+	"actions": [],
+	"autoname": "naming_series:",
+	"creation": "2025-01-01 00:00:00.000000",
+	"doctype": "DocType",
+	"editable_grid": 1,
+	"engine": "InnoDB",
+	"field_order": [
+		"naming_series",
+		"status",
+		"slip_type",
+		"unauthorized_flag",
+		"company",
+		"column_break_header",
+		"merchant_name_ocr",
+		"transaction_date",
+		"total_amount",
+		"vat_amount",
+		"currency",
+		"confidence",
+		"column_break_header2",
+		"description",
+		"source_type",
+		"uploaded_by",
+		"tax_template",
+		"section_break_vehicle",
+		"vehicle_registration",
+		"fleet_vehicle",
+		"vehicle_match_status",
+		"column_break_vehicle",
+		"posting_mode",
+		"fleet_card_supplier",
+		"expense_account",
+		"credit_account",
+		"cost_center",
+		"section_break_fuel",
+		"litres",
+		"price_per_litre",
+		"column_break_fuel",
+		"fuel_type",
+		"odometer_reading",
+		"section_break_toll",
+		"toll_plaza_name",
+		"column_break_toll",
+		"route",
+		"section_break_result",
+		"document_type",
+		"purchase_invoice",
+		"column_break_result",
+		"journal_entry",
+		"section_break_drive",
+		"drive_file_id",
+		"drive_retry_count",
+		"column_break_drive",
+		"drive_link",
+		"drive_folder_path",
+		"section_break_raw",
+		"raw_payload",
+		"section_break_error",
+		"error_log",
+		"no_action_reason"
+	],
+	"fields": [
+		{
+			"fieldname": "naming_series",
+			"fieldtype": "Select",
+			"hidden": 1,
+			"label": "Naming Series",
+			"options": "OCR-FS-.#####",
+			"default": "OCR-FS-.#####"
+		},
+		{
+			"fieldname": "status",
+			"fieldtype": "Select",
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"label": "Status",
+			"options": "Pending\nNeeds Review\nMatched\nDraft Created\nCompleted\nNo Action\nError",
+			"default": "Pending",
+			"read_only": 1
+		},
+		{
+			"fieldname": "slip_type",
+			"fieldtype": "Select",
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"label": "Slip Type",
+			"options": "\nFuel\nToll\nOther"
+		},
+		{
+			"default": "0",
+			"fieldname": "unauthorized_flag",
+			"fieldtype": "Check",
+			"label": "Unauthorized Purchase",
+			"read_only": 1,
+			"description": "Flagged when slip is classified as Other (not fuel or toll)"
+		},
+		{
+			"fieldname": "company",
+			"fieldtype": "Link",
+			"label": "Company",
+			"options": "Company",
+			"read_only": 1
+		},
+		{
+			"fieldname": "column_break_header",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "merchant_name_ocr",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Merchant",
+			"read_only": 1,
+			"description": "Extracted merchant/station name from slip"
+		},
+		{
+			"fieldname": "transaction_date",
+			"fieldtype": "Date",
+			"in_list_view": 1,
+			"label": "Transaction Date"
+		},
+		{
+			"fieldname": "total_amount",
+			"fieldtype": "Currency",
+			"in_list_view": 1,
+			"label": "Total Amount"
+		},
+		{
+			"fieldname": "vat_amount",
+			"fieldtype": "Currency",
+			"label": "VAT Amount"
+		},
+		{
+			"fieldname": "currency",
+			"fieldtype": "Data",
+			"label": "Currency"
+		},
+		{
+			"fieldname": "confidence",
+			"fieldtype": "Percent",
+			"label": "Confidence",
+			"read_only": 1,
+			"description": "Gemini extraction confidence score"
+		},
+		{
+			"fieldname": "column_break_header2",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "description",
+			"fieldtype": "Small Text",
+			"label": "Description",
+			"read_only": 1,
+			"description": "Full description extracted from slip"
+		},
+		{
+			"fieldname": "source_type",
+			"fieldtype": "Data",
+			"label": "Source",
+			"read_only": 1
+		},
+		{
+			"fieldname": "uploaded_by",
+			"fieldtype": "Link",
+			"label": "Uploaded By",
+			"options": "User",
+			"read_only": 1
+		},
+		{
+			"fieldname": "tax_template",
+			"fieldtype": "Link",
+			"label": "Tax Template",
+			"options": "Purchase Taxes and Charges Template"
+		},
+		{
+			"fieldname": "section_break_vehicle",
+			"fieldtype": "Section Break",
+			"label": "Vehicle & Posting"
+		},
+		{
+			"fieldname": "vehicle_registration",
+			"fieldtype": "Data",
+			"label": "Vehicle Registration",
+			"description": "Number plate extracted from slip"
+		},
+		{
+			"fieldname": "fleet_vehicle",
+			"fieldtype": "Link",
+			"label": "Fleet Vehicle",
+			"options": "Fleet Vehicle",
+			"description": "Matched from vehicle registration (requires fleet_management app)"
+		},
+		{
+			"fieldname": "vehicle_match_status",
+			"fieldtype": "Select",
+			"label": "Vehicle Match Status",
+			"options": "\nAuto Matched\nSuggested\nUnmatched\nConfirmed",
+			"read_only": 1
+		},
+		{
+			"fieldname": "column_break_vehicle",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "posting_mode",
+			"fieldtype": "Select",
+			"label": "Posting Mode",
+			"options": "\nFleet Card\nDirect Expense",
+			"read_only": 1,
+			"description": "Auto-set from vehicle config: Fleet Card → PI, Direct Expense → JE"
+		},
+		{
+			"fieldname": "fleet_card_supplier",
+			"fieldtype": "Link",
+			"label": "Fleet Card Supplier",
+			"options": "Supplier",
+			"read_only": 1,
+			"depends_on": "eval:doc.posting_mode=='Fleet Card'",
+			"description": "Fleet card provider (e.g., WesBank) — auto-set from vehicle"
+		},
+		{
+			"fieldname": "expense_account",
+			"fieldtype": "Link",
+			"label": "Expense / Control Account",
+			"options": "Account",
+			"description": "Control account for Fleet Card mode, expense account for Direct Expense mode"
+		},
+		{
+			"fieldname": "credit_account",
+			"fieldtype": "Link",
+			"label": "Credit Account",
+			"options": "Account",
+			"depends_on": "eval:doc.posting_mode=='Direct Expense'",
+			"description": "Credit account for JE (e.g., Bank, Petty Cash)"
+		},
+		{
+			"fieldname": "cost_center",
+			"fieldtype": "Link",
+			"label": "Cost Center",
+			"options": "Cost Center",
+			"description": "Pulled from Fleet Vehicle config or manually set"
+		},
+		{
+			"fieldname": "section_break_fuel",
+			"fieldtype": "Section Break",
+			"label": "Fuel Details",
+			"depends_on": "eval:doc.slip_type=='Fuel'"
+		},
+		{
+			"fieldname": "litres",
+			"fieldtype": "Float",
+			"label": "Litres",
+			"precision": "2"
+		},
+		{
+			"fieldname": "price_per_litre",
+			"fieldtype": "Currency",
+			"label": "Price per Litre"
+		},
+		{
+			"fieldname": "column_break_fuel",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "fuel_type",
+			"fieldtype": "Data",
+			"label": "Fuel Type",
+			"description": "Diesel, Petrol, 95 Unleaded, 93 Unleaded, etc."
+		},
+		{
+			"fieldname": "odometer_reading",
+			"fieldtype": "Float",
+			"label": "Odometer Reading",
+			"precision": "1",
+			"description": "Odometer reading if visible on slip"
+		},
+		{
+			"fieldname": "section_break_toll",
+			"fieldtype": "Section Break",
+			"label": "Toll Details",
+			"depends_on": "eval:doc.slip_type=='Toll'"
+		},
+		{
+			"fieldname": "toll_plaza_name",
+			"fieldtype": "Data",
+			"label": "Toll Plaza"
+		},
+		{
+			"fieldname": "column_break_toll",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "route",
+			"fieldtype": "Data",
+			"label": "Route",
+			"description": "e.g., N1, N2, R21"
+		},
+		{
+			"fieldname": "section_break_result",
+			"fieldtype": "Section Break",
+			"label": "Created Document",
+			"depends_on": "eval:doc.purchase_invoice || doc.journal_entry"
+		},
+		{
+			"fieldname": "document_type",
+			"fieldtype": "Select",
+			"hidden": 1,
+			"in_standard_filter": 1,
+			"label": "Document Type",
+			"options": "\nPurchase Invoice\nJournal Entry"
+		},
+		{
+			"fieldname": "purchase_invoice",
+			"fieldtype": "Link",
+			"label": "Purchase Invoice",
+			"options": "Purchase Invoice",
+			"read_only": 1
+		},
+		{
+			"fieldname": "column_break_result",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "journal_entry",
+			"fieldtype": "Link",
+			"label": "Journal Entry",
+			"options": "Journal Entry",
+			"read_only": 1
+		},
+		{
+			"fieldname": "section_break_drive",
+			"fieldtype": "Section Break",
+			"label": "Google Drive",
+			"collapsible": 1
+		},
+		{
+			"fieldname": "drive_file_id",
+			"fieldtype": "Data",
+			"hidden": 1,
+			"label": "Drive File ID",
+			"read_only": 1
+		},
+		{
+			"default": "0",
+			"fieldname": "drive_retry_count",
+			"fieldtype": "Int",
+			"hidden": 1,
+			"label": "Drive Retry Count",
+			"read_only": 1
+		},
+		{
+			"fieldname": "column_break_drive",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "drive_link",
+			"fieldtype": "Data",
+			"label": "Drive Link",
+			"read_only": 1
+		},
+		{
+			"fieldname": "drive_folder_path",
+			"fieldtype": "Data",
+			"label": "Archive Path",
+			"read_only": 1
+		},
+		{
+			"fieldname": "section_break_raw",
+			"fieldtype": "Section Break",
+			"label": "Raw Extraction Data",
+			"collapsible": 1
+		},
+		{
+			"fieldname": "raw_payload",
+			"fieldtype": "Code",
+			"label": "Raw Payload",
+			"options": "JSON",
+			"permlevel": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "section_break_error",
+			"fieldtype": "Section Break",
+			"label": "Error / Status",
+			"depends_on": "eval:doc.error_log || doc.no_action_reason"
+		},
+		{
+			"fieldname": "error_log",
+			"fieldtype": "Small Text",
+			"label": "Error Log",
+			"read_only": 1
+		},
+		{
+			"fieldname": "no_action_reason",
+			"fieldtype": "Small Text",
+			"label": "No Action Reason",
+			"read_only": 1
+		}
+	],
+	"index_web_pages_for_search": 1,
+	"links": [],
+	"modified": "2025-01-01 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "ERPNext OCR",
+	"name": "OCR Fleet Slip",
+	"naming_rule": "By \"Naming Series\" field",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1,
+			"permlevel": 0
+		},
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1,
+			"permlevel": 1
+		},
+		{
+			"create": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "OCR Manager",
+			"share": 1,
+			"write": 1,
+			"permlevel": 0
+		}
+	],
+	"show_title_field_in_link": 1,
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"states": [],
+	"title_field": "merchant_name_ocr",
+	"track_changes": 1
+}

@@ -343,6 +343,11 @@ def sample_settings():
 		dn_scan_folder_id="",
 		dn_archive_folder_id="",
 		dn_default_warehouse="",
+		fleet_scan_folder_id="",
+		fleet_fuel_item="",
+		fleet_toll_item="",
+		fleet_expense_account="",
+		fleet_credit_account="",
 	)
 
 
