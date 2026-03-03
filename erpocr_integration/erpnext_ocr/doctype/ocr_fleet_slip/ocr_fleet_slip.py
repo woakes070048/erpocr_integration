@@ -16,17 +16,17 @@ class OCRFleetSlip(Document):
 		if self.status in ("Completed", "Draft Created", "No Action", "Error"):
 			return
 
-		# If PI or JE already created, mark as Draft Created
-		if self.purchase_invoice or self.journal_entry:
+		# If PI already created, mark as Draft Created
+		if self.purchase_invoice:
 			self.status = "Draft Created"
 			return
 
 		# Check readiness for document creation
 		has_data = bool(self.merchant_name_ocr or self.total_amount or self.slip_type)
 		vehicle_matched = bool(self.fleet_vehicle) or bool(self.vehicle_registration)
-		posting_ready = bool(self.posting_mode)
+		has_supplier = bool(self.fleet_card_supplier)
 
-		if has_data and vehicle_matched and posting_ready:
+		if has_data and vehicle_matched and has_supplier:
 			self.status = "Matched"
 		elif has_data:
 			self.status = "Needs Review"
@@ -66,8 +66,8 @@ class OCRFleetSlip(Document):
 			self.expense_account = vehicle.custom_fleet_control_account
 		else:
 			self.posting_mode = "Direct Expense"
-			self.expense_account = settings.get("fleet_expense_account")
-			self.credit_account = settings.get("fleet_credit_account")
+			self.fleet_card_supplier = settings.get("fleet_default_supplier") or ""
+			self.expense_account = settings.get("fleet_expense_account") or ""
 
 		if vehicle.custom_cost_center:
 			self.cost_center = vehicle.custom_cost_center
@@ -90,16 +90,21 @@ class OCRFleetSlip(Document):
 		current = frappe.db.get_value(
 			"OCR Fleet Slip",
 			self.name,
-			["purchase_invoice", "journal_entry"],
+			["purchase_invoice"],
 			as_dict=True,
 			for_update=True,
 		)
-		if current.purchase_invoice or current.journal_entry:
+		if current.purchase_invoice:
 			frappe.throw(_("A document has already been created for this fleet slip."))
 
 		supplier = self.fleet_card_supplier
 		if not supplier:
-			frappe.throw(_("No fleet card supplier set. Link a Fleet Vehicle with a fleet card provider."))
+			frappe.throw(
+				_(
+					"No supplier set. Configure a fleet card provider on the Fleet Vehicle, "
+					"or set Fleet Default Supplier in OCR Settings."
+				)
+			)
 
 		settings = frappe.get_cached_doc("OCR Settings")
 
@@ -189,142 +194,8 @@ class OCRFleetSlip(Document):
 		return pi.name
 
 	@frappe.whitelist()
-	def create_journal_entry(self):
-		"""Create a Journal Entry draft for direct expense mode."""
-		if not frappe.has_permission("Journal Entry", "create"):
-			frappe.throw(_("You don't have permission to create Journal Entries."))
-
-		if self.status not in ("Matched", "Needs Review"):
-			frappe.throw(
-				_("Cannot create Journal Entry from a record with status '{0}'.").format(self.status)
-			)
-
-		if self.document_type != "Journal Entry":
-			frappe.throw(_("Document Type must be 'Journal Entry' to create a Journal Entry."))
-
-		# Row-lock
-		current = frappe.db.get_value(
-			"OCR Fleet Slip",
-			self.name,
-			["purchase_invoice", "journal_entry"],
-			as_dict=True,
-			for_update=True,
-		)
-		if current.purchase_invoice or current.journal_entry:
-			frappe.throw(_("A document has already been created for this fleet slip."))
-
-		settings = frappe.get_cached_doc("OCR Settings")
-
-		expense_account = self.expense_account or settings.get("fleet_expense_account")
-		if not expense_account:
-			frappe.throw(
-				_(
-					"Please set an Expense Account on this slip or configure "
-					"Fleet Expense Account in OCR Settings."
-				)
-			)
-
-		credit_account = self.credit_account or settings.get("fleet_credit_account")
-		if not credit_account:
-			frappe.throw(
-				_(
-					"Please set a Credit Account on this slip or configure "
-					"Fleet Credit Account in OCR Settings."
-				)
-			)
-
-		self._validate_account(expense_account, _("Expense Account"))
-		self._validate_account(credit_account, _("Credit Account"))
-
-		total_debit = flt(self.total_amount, 2)
-
-		accounts = [
-			{
-				"account": expense_account,
-				"debit_in_account_currency": total_debit,
-				"credit_in_account_currency": 0,
-				"cost_center": self.cost_center or settings.get("default_cost_center"),
-			},
-		]
-
-		# Tax line if VAT detected
-		if self.tax_template and flt(self.vat_amount) > 0:
-			template = frappe.get_cached_doc("Purchase Taxes and Charges Template", self.tax_template)
-			tax_account = None
-			for tax_row in template.taxes:
-				if tax_row.account_head:
-					tax_account = tax_row.account_head
-					break
-
-			if tax_account:
-				self._validate_account(tax_account, _("Tax Account"))
-				tax_amt = flt(self.vat_amount, 2)
-				total_debit += tax_amt
-				accounts.append(
-					{
-						"account": tax_account,
-						"debit_in_account_currency": tax_amt,
-						"credit_in_account_currency": 0,
-						"cost_center": settings.get("default_cost_center"),
-					}
-				)
-
-		# Credit line (balances total debits)
-		credit_line = {
-			"account": credit_account,
-			"debit_in_account_currency": 0,
-			"credit_in_account_currency": flt(total_debit, 2),
-		}
-
-		credit_account_type = frappe.db.get_value("Account", credit_account, "account_type")
-		if credit_account_type in ("Payable", "Receivable") and self.fleet_card_supplier:
-			credit_line["party_type"] = "Supplier"
-			credit_line["party"] = self.fleet_card_supplier
-
-		if settings.get("default_cost_center"):
-			credit_line["cost_center"] = settings.default_cost_center
-
-		accounts.append(credit_line)
-
-		desc = self._build_description()
-
-		je = frappe.get_doc(
-			{
-				"doctype": "Journal Entry",
-				"voucher_type": "Journal Entry",
-				"company": self.company,
-				"set_posting_time": 1,
-				"posting_date": self.transaction_date or frappe.utils.today(),
-				"user_remark": "OCR Fleet Slip: {} — {}".format(
-					self.name,
-					frappe.utils.escape_html(desc or ""),
-				),
-				"accounts": accounts,
-			}
-		)
-		je.flags.ignore_mandatory = True
-		je.insert()
-
-		# Copy scan attachment to JE
-		self._copy_scan_to_document("Journal Entry", je.name)
-
-		# Link back
-		self.journal_entry = je.name
-		self.status = "Draft Created"
-		self.save()
-
-		frappe.msgprint(
-			_("Journal Entry {0} created as draft.").format(
-				frappe.utils.get_link_to_form("Journal Entry", je.name)
-			),
-			indicator="green",
-		)
-
-		return je.name
-
-	@frappe.whitelist()
 	def unlink_document(self):
-		"""Unlink and delete the draft PI/JE, resetting for re-use."""
+		"""Unlink and delete the draft PI, resetting for re-use."""
 		if not frappe.has_permission("OCR Fleet Slip", "write", self.name):
 			frappe.throw(_("You don't have permission to modify this record."))
 
@@ -339,10 +210,6 @@ class OCRFleetSlip(Document):
 			linked_doctype = "Purchase Invoice"
 			linked_name = self.purchase_invoice
 			link_field = "purchase_invoice"
-		elif self.journal_entry:
-			linked_doctype = "Journal Entry"
-			linked_name = self.journal_entry
-			link_field = "journal_entry"
 
 		if not linked_name:
 			frappe.throw(_("No linked document found to unlink."))
@@ -480,25 +347,3 @@ class OCRFleetSlip(Document):
 		except Exception:
 			# Non-critical — don't fail document creation
 			frappe.log_error("Failed to copy scan attachment to fleet slip document")
-
-	def _validate_account(self, account, label):
-		"""Validate that an account belongs to this company, is not a group, and is not disabled."""
-		account_details = frappe.db.get_value(
-			"Account", account, ["company", "is_group", "disabled"], as_dict=True
-		)
-		if not account_details:
-			frappe.throw(_("{0}: Account '{1}' does not exist.").format(label, account))
-		if account_details.company != self.company:
-			frappe.throw(
-				_("{0}: Account '{1}' belongs to company '{2}', not '{3}'.").format(
-					label, account, account_details.company, self.company
-				)
-			)
-		if account_details.is_group:
-			frappe.throw(
-				_("{0}: Account '{1}' is a group account. Please select a ledger account.").format(
-					label, account
-				)
-			)
-		if account_details.disabled:
-			frappe.throw(_("{0}: Account '{1}' is disabled.").format(label, account))

@@ -38,8 +38,8 @@
 		"fleet_fuel_item",
 		"fleet_toll_item",
 		"column_break_fleet",
-		"fleet_expense_account",
-		"fleet_credit_account"
+		"fleet_default_supplier",
+		"fleet_expense_account"
 	],
 	"fields": [
 		{
@@ -244,32 +244,32 @@
 			"fieldtype": "Link",
 			"label": "Fleet Fuel Item",
 			"options": "Item",
-			"description": "Default non-stock item for fuel slip Purchase Invoices and Journal Entries"
+			"description": "Default non-stock item for fuel slip Purchase Invoices"
 		},
 		{
 			"fieldname": "fleet_toll_item",
 			"fieldtype": "Link",
 			"label": "Fleet Toll Item",
 			"options": "Item",
-			"description": "Default non-stock item for toll slip Purchase Invoices and Journal Entries"
+			"description": "Default non-stock item for toll slip Purchase Invoices"
 		},
 		{
 			"fieldname": "column_break_fleet",
 			"fieldtype": "Column Break"
 		},
 		{
+			"fieldname": "fleet_default_supplier",
+			"fieldtype": "Link",
+			"label": "Fleet Default Supplier",
+			"options": "Supplier",
+			"description": "Default supplier for fleet slip PIs when vehicle has no fleet card provider"
+		},
+		{
 			"fieldname": "fleet_expense_account",
 			"fieldtype": "Link",
 			"label": "Fleet Expense Account",
 			"options": "Account",
-			"description": "Default expense account for fleet slip Journal Entries (direct expense mode)"
-		},
-		{
-			"fieldname": "fleet_credit_account",
-			"fieldtype": "Link",
-			"label": "Fleet Credit Account",
-			"options": "Account",
-			"description": "Default credit account for fleet slip Journal Entries (e.g., Bank, Petty Cash)"
+			"description": "Default expense account for fleet slip Purchase Invoices (non-fleet-card vehicles)"
 		}
 	],
 	"index_web_pages_for_search": 1,

@@ -47,7 +47,7 @@ The attachment is extracted automatically. You can forward emails with multiple 
 
 1. Log in to ERPNext
 2. In the search bar, type **OCR Import** and click **+ Add OCR Import**
-3. Click **Actions > Upload File** in the top-right
+3. Click the **Upload File** button in the top toolbar
 4. Select your file (PDF, JPEG, or PNG — max 10 MB)
 5. Wait 5–30 seconds for processing
 
@@ -84,4 +84,4 @@ The import will still be created — it will just show the supplier as "Unmatche
 If you used Google Drive, the file is moved to the archive folder (organised by year/month/supplier). There's a "View Original Invoice" link on each OCR Import record. If you used email, the original stays in your email.
 
 **Can I send the same invoice twice?**
-The system will process it again and create a duplicate record. The accounting team will spot this during review. Try to avoid sending duplicates.
+The system will process it again, but it automatically detects potential duplicates (matching supplier and invoice number) and shows a warning banner on the record. The accounting team will see this during review. Try to avoid sending duplicates, but if it happens, it will be flagged.

@@ -31,7 +31,6 @@
 		"posting_mode",
 		"fleet_card_supplier",
 		"expense_account",
-		"credit_account",
 		"cost_center",
 		"section_break_fuel",
 		"litres",
@@ -46,8 +45,6 @@
 		"section_break_result",
 		"document_type",
 		"purchase_invoice",
-		"column_break_result",
-		"journal_entry",
 		"section_break_drive",
 		"drive_file_id",
 		"drive_retry_count",
@@ -208,16 +205,14 @@
 			"label": "Posting Mode",
 			"options": "\nFleet Card\nDirect Expense",
 			"read_only": 1,
-			"description": "Auto-set from vehicle config: Fleet Card → PI, Direct Expense → JE"
+			"description": "Auto-set from vehicle config: Fleet Card = supplier from vehicle, Direct Expense = default supplier"
 		},
 		{
 			"fieldname": "fleet_card_supplier",
 			"fieldtype": "Link",
-			"label": "Fleet Card Supplier",
+			"label": "Supplier",
 			"options": "Supplier",
-			"read_only": 1,
-			"depends_on": "eval:doc.posting_mode=='Fleet Card'",
-			"description": "Fleet card provider (e.g., WesBank) — auto-set from vehicle"
+			"description": "Fleet card provider (auto-set from vehicle) or default supplier from OCR Settings"
 		},
 		{
 			"fieldname": "expense_account",
@@ -225,14 +220,6 @@
 			"label": "Expense / Control Account",
 			"options": "Account",
 			"description": "Control account for Fleet Card mode, expense account for Direct Expense mode"
-		},
-		{
-			"fieldname": "credit_account",
-			"fieldtype": "Link",
-			"label": "Credit Account",
-			"options": "Account",
-			"depends_on": "eval:doc.posting_mode=='Direct Expense'",
-			"description": "Credit account for JE (e.g., Bank, Petty Cash)"
 		},
 		{
 			"fieldname": "cost_center",
@@ -300,7 +287,7 @@
 			"fieldname": "section_break_result",
 			"fieldtype": "Section Break",
 			"label": "Created Document",
-			"depends_on": "eval:doc.purchase_invoice || doc.journal_entry"
+			"depends_on": "eval:doc.purchase_invoice"
 		},
 		{
 			"fieldname": "document_type",
@@ -308,24 +295,13 @@
 			"hidden": 1,
 			"in_standard_filter": 1,
 			"label": "Document Type",
-			"options": "\nPurchase Invoice\nJournal Entry"
+			"options": "\nPurchase Invoice"
 		},
 		{
 			"fieldname": "purchase_invoice",
 			"fieldtype": "Link",
 			"label": "Purchase Invoice",
 			"options": "Purchase Invoice",
-			"read_only": 1
-		},
-		{
-			"fieldname": "column_break_result",
-			"fieldtype": "Column Break"
-		},
-		{
-			"fieldname": "journal_entry",
-			"fieldtype": "Link",
-			"label": "Journal Entry",
-			"options": "Journal Entry",
 			"read_only": 1
 		},
 		{

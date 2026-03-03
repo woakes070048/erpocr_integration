@@ -40,7 +40,7 @@ def _make_settings(**overrides):
 		fleet_fuel_item="FUEL-001",
 		fleet_toll_item="TOLL-001",
 		fleet_expense_account="5000 - Fuel Expense - TC",
-		fleet_credit_account="1200 - Bank - TC",
+		fleet_default_supplier="Default Supplier",
 		default_item=None,
 	)
 	defaults.update(overrides)
@@ -67,7 +67,6 @@ class MockFleetSlip:
 		self.posting_mode = kw.get("posting_mode", "")
 		self.fleet_card_supplier = kw.get("fleet_card_supplier", "")
 		self.expense_account = kw.get("expense_account", "")
-		self.credit_account = kw.get("credit_account", "")
 		self.cost_center = kw.get("cost_center", "")
 		self.company = kw.get("company", "Test Company")
 		self.litres = kw.get("litres", 0)
@@ -81,7 +80,6 @@ class MockFleetSlip:
 		self.tax_template = kw.get("tax_template", "")
 		self.drive_file_id = kw.get("drive_file_id", None)
 		self.purchase_invoice = kw.get("purchase_invoice", None)
-		self.journal_entry = kw.get("journal_entry", None)
 		self.source_type = kw.get("source_type", "Gemini Drive Scan")
 
 	def get(self, key, default=None):
@@ -459,8 +457,8 @@ class TestApplyVehicleConfig:
 		_apply_vehicle_config(doc, vehicle, settings)
 
 		assert doc.posting_mode == "Direct Expense"
+		assert doc.fleet_card_supplier == "Default Supplier"
 		assert doc.expense_account == "5000 - Fuel Expense - TC"
-		assert doc.credit_account == "1200 - Bank - TC"
 		assert doc.cost_center == "Head Office - TC"
 
 	def test_no_cost_center(self):
@@ -505,17 +503,6 @@ class TestDocEvents:
 			"OCR Fleet Slip", "OCR-FS-00001", "status", "Completed"
 		)
 
-	def test_je_submit_marks_completed(self, mock_frappe):
-		"""JE submit marks linked fleet slip as Completed."""
-		mock_frappe.get_all.return_value = ["OCR-FS-00001"]
-
-		je_doc = SimpleNamespace(doctype="Journal Entry", name="JE-00001")
-		update_ocr_fleet_on_submit(je_doc, "on_submit")
-
-		mock_frappe.db.set_value.assert_called_once_with(
-			"OCR Fleet Slip", "OCR-FS-00001", "status", "Completed"
-		)
-
 	def test_submit_no_linked_slips(self, mock_frappe):
 		"""No linked fleet slips → no action."""
 		mock_frappe.get_all.return_value = []
@@ -542,24 +529,8 @@ class TestDocEvents:
 		assert mock_fleet.document_type == ""
 		assert mock_fleet.status == "Matched"
 
-	def test_je_cancel_resets_to_matched(self, mock_frappe):
-		"""JE cancel clears link and resets fleet slip."""
-		mock_frappe.get_all.return_value = ["OCR-FS-00001"]
-		mock_fleet = MockFleetSlip(
-			name="OCR-FS-00001",
-			status="Completed",
-			journal_entry="JE-00001",
-		)
-		mock_frappe.get_doc.return_value = mock_fleet
-
-		je_doc = SimpleNamespace(doctype="Journal Entry", name="JE-00001")
-		update_ocr_fleet_on_cancel(je_doc, "on_cancel")
-
-		assert mock_fleet.journal_entry == ""
-		assert mock_fleet.document_type == ""
-
 	def test_unrelated_doctype_ignored(self, mock_frappe):
-		"""Non PI/JE doctypes are ignored."""
+		"""Non-PI doctypes are ignored."""
 		doc = SimpleNamespace(doctype="Sales Invoice", name="SI-00001")
 		update_ocr_fleet_on_submit(doc, "on_submit")
 		mock_frappe.get_all.assert_not_called()

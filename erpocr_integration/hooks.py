@@ -93,14 +93,8 @@ doc_events = {
 		"on_cancel": "erpocr_integration.dn_api.update_ocr_dn_on_cancel",
 	},
 	"Journal Entry": {
-		"on_submit": [
-			"erpocr_integration.api.update_ocr_import_on_submit",
-			"erpocr_integration.fleet_api.update_ocr_fleet_on_submit",
-		],
-		"on_cancel": [
-			"erpocr_integration.api.update_ocr_import_on_cancel",
-			"erpocr_integration.fleet_api.update_ocr_fleet_on_cancel",
-		],
+		"on_submit": "erpocr_integration.api.update_ocr_import_on_submit",
+		"on_cancel": "erpocr_integration.api.update_ocr_import_on_cancel",
 	},
 }
 

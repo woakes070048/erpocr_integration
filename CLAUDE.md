@@ -33,7 +33,7 @@ DN Pipeline:   Drop DN scan in Drive folder → 15-min poll → Gemini API → C
 
 Fleet Pipeline: Drop fleet slip scan in Drive folder → 15-min poll → Gemini API → Create OCR Fleet Slip → Vehicle Match → Review
                 ├─ Fleet Card vehicle → Create Purchase Invoice (supplier = fleet card provider)
-                └─ Direct Expense vehicle → Create Journal Entry (DR expense, CR bank)
+                └─ Direct Expense vehicle → Create Purchase Invoice (supplier = default from OCR Settings)
 ```
 
 ### Design Philosophy
@@ -57,8 +57,8 @@ Fleet Pipeline: Drop fleet slip scan in Drive folder → 15-min poll → Gemini 
 | `erpocr_integration/erpnext_ocr/doctype/ocr_delivery_note/ocr_delivery_note.py` | OCR DN controller — create_purchase_order(), create_purchase_receipt(), unlink, no_action |
 | `erpocr_integration/public/js/ocr_delivery_note.js` | DN client: PO matching dialogs (qty-focused), Create dropdown (PO/PR), real-time status |
 | `erpocr_integration/fleet_api.py` | Fleet background processing (`fleet_gemini_process`), vehicle matching, doc_event hooks, retry |
-| `erpocr_integration/erpnext_ocr/doctype/ocr_fleet_slip/ocr_fleet_slip.py` | OCR Fleet Slip controller — create_purchase_invoice(), create_journal_entry(), unlink, no_action |
-| `erpocr_integration/public/js/ocr_fleet_slip.js` | Fleet client: Create dropdown (PI/JE), vehicle config display, status intro, unauthorized warning |
+| `erpocr_integration/erpnext_ocr/doctype/ocr_fleet_slip/ocr_fleet_slip.py` | OCR Fleet Slip controller — create_purchase_invoice(), unlink, no_action, status workflow |
+| `erpocr_integration/public/js/ocr_fleet_slip.js` | Fleet client: Create PI button, vehicle config display, status intro, unauthorized warning |
 
 ### DocTypes
 | DocType | Type | Purpose |
@@ -71,7 +71,7 @@ Fleet Pipeline: Drop fleet slip scan in Drive folder → 15-min poll → Gemini 
 | **OCR Service Mapping** | Regular | Pattern → item + GL account + cost center (supplier-specific or generic) |
 | **OCR Delivery Note** | Regular | DN staging record — extracted qty/item data, PO matching, creates PO or PR |
 | **OCR Delivery Note Item** | Child Table | DN line items — description, qty, uom, matched item_code, PO item ref |
-| **OCR Fleet Slip** | Regular | Fleet slip staging — fuel/toll/other classification, vehicle matching, creates PI (fleet card) or JE (direct expense) |
+| **OCR Fleet Slip** | Regular | Fleet slip staging — fuel/toll/other classification, vehicle matching, always creates Purchase Invoice |
 
 ### OCR Import Status Workflow
 Pending → Needs Review → Matched → Draft Created → Completed / Error
@@ -98,18 +98,20 @@ Pending → Needs Review → Matched → Draft Created → Completed / No Action
 Pending → Needs Review → Matched → Draft Created → Completed / No Action / Error
 
 - **Single transaction per slip** — no child table; fuel fill-up or toll charge lives directly on the main doc
+- **Always creates Purchase Invoice** — no Journal Entry path; both fleet card and direct expense vehicles create PIs
 - **Slip classification**: `slip_type` (Fuel / Toll / Other) determines item and form sections
 - **Unauthorized flag**: `slip_type = Other` auto-sets `unauthorized_flag` — orange warning on form, review and mark No Action
 - **Drive-only input** — drivers drop scans in a shared Drive folder; no manual upload or email
 - **Per-vehicle posting mode** via Fleet Vehicle custom fields (`custom_fleet_card_provider`, `custom_fleet_control_account`, `custom_cost_center`):
-  - Fleet card provider set → **Fleet Card** mode → creates Purchase Invoice (supplier = fleet card provider, expense = control account)
-  - Fleet card provider blank → **Direct Expense** mode → creates Journal Entry (DR expense, CR bank)
-- **`posting_mode` is read-only** on OCR Fleet Slip — auto-set during vehicle matching from Fleet Vehicle config
-- **Merchant ≠ Supplier**: merchant name (Shell, Engen) is informational; PI supplier comes from vehicle's fleet card provider
+  - Fleet card provider set → **Fleet Card** mode → PI supplier = fleet card provider, expense = control account
+  - Fleet card provider blank → **Direct Expense** mode → PI supplier = `fleet_default_supplier` from OCR Settings, expense = `fleet_expense_account`
+- **Supplier resolution**: fleet card provider (from vehicle) → `fleet_default_supplier` (from OCR Settings) → user fills manually
+- **Status readiness**: Matched requires data + vehicle + supplier (`fleet_card_supplier` field must be set)
+- **Merchant ≠ Supplier**: merchant name (Shell, Engen) is informational; PI supplier comes from vehicle config or default
 - **Item from slip_type**: Fuel → `fleet_fuel_item`, Toll → `fleet_toll_item` from OCR Settings (no item matching needed)
 - **Soft dependency on fleet_management**: vehicle matching only works if Fleet Vehicle DocType exists; graceful degradation otherwise
 - **Custom fields on Fleet Vehicle**: installed via fixtures (`custom_field.json`) — `custom_fleet_card_provider`, `custom_fleet_control_account`, `custom_cost_center`
-- **doc_events**: PI/JE submit → Completed; PI/JE cancel → reset to Matched (same pattern as OCR Import/DN)
+- **doc_events**: PI submit → Completed; PI cancel → reset to Matched
 
 ## Critical Implementation Patterns
 
@@ -316,17 +318,16 @@ bench restart
 - [x] Drive integration: `fleet_scan_folder_id` in OCR Settings, reuses existing archive folder
 - [x] Fleet processing pipeline: `fleet_gemini_process()`, `_populate_ocr_fleet()`, `_run_fleet_matching()`
 - [x] Vehicle matching: registration → Fleet Vehicle → auto-set posting mode + accounts
-- [x] Per-vehicle posting mode: Fleet Card (PI) vs Direct Expense (JE)
+- [x] Per-vehicle posting mode: Fleet Card (supplier from vehicle) vs Direct Expense (default supplier from settings)
 - [x] Custom fields on Fleet Vehicle via fixtures (`custom_fleet_card_provider`, `custom_fleet_control_account`, `custom_cost_center`)
-- [x] Create Purchase Invoice (fleet card mode — supplier = fleet card provider, control account)
-- [x] Create Journal Entry (direct expense mode — DR expense, CR bank)
+- [x] Create Purchase Invoice (always — supplier from fleet card provider or default supplier)
 - [x] Unauthorized purchase flagging (slip_type = Other → orange warning)
 - [x] No Action workflow, Unlink & Reset, Retry Extraction
-- [x] doc_events hooks for PI/JE submit/cancel
-- [x] Client script: Create dropdown (PI/JE), vehicle config, status intro, unauthorized warning
-- [x] OCR Settings: fleet_scan_folder_id, fleet_fuel_item, fleet_toll_item, fleet_expense_account, fleet_credit_account
+- [x] doc_events hooks for PI submit/cancel
+- [x] Client script: Create PI button, vehicle config, status intro, unauthorized warning
+- [x] OCR Settings: fleet_scan_folder_id, fleet_fuel_item, fleet_toll_item, fleet_default_supplier, fleet_expense_account
 - [x] Workspace: OCR Fleet Slip shortcut + link
-- [x] Test suite (145 new tests — unit + integration + workflow; 498 total)
+- [x] Test suite (124 new tests — unit + integration + workflow; 477 total)
 
 ### Future — Email Monitor Hardening
 - [ ] Replace X-GM-LABELS label manipulation with standard IMAP COPY + DELETE for moving emails from "OCR Invoices" to "OCR Processed" (more reliable across Gmail Workspace)
@@ -362,8 +363,8 @@ bench restart
 - **Fleet Scan Folder ID**: Google Drive folder ID polled for fleet slip scans
 - **Fleet Fuel Item**: Default non-stock item for fuel slips
 - **Fleet Toll Item**: Default non-stock item for toll slips
-- **Fleet Expense Account**: Default expense account for direct expense JEs
-- **Fleet Credit Account**: Default credit account for direct expense JEs (bank/petty cash)
+- **Fleet Default Supplier**: Default supplier for fleet slip PIs when vehicle has no fleet card provider
+- **Fleet Expense Account**: Default expense account for non-fleet-card vehicle PIs
 
 ### Usage
 
@@ -415,9 +416,8 @@ bench restart
 1. Driver scans fuel/toll slip → drops in Fleet Drive scan folder
 2. Every 15 minutes, new files are automatically downloaded and processed (single slip per scan)
 3. Gemini classifies as Fuel, Toll, or Other and extracts vehicle registration
-4. Vehicle matched → posting mode auto-set (Fleet Card → PI, Direct Expense → JE)
-5. Accounts team reviews OCR Fleet Slip — verifies vehicle, amounts, posting mode
-6. **(Fleet Card)** Click **Create → Purchase Invoice** (supplier = fleet card provider, control account)
-7. **(Direct Expense)** Click **Create → Journal Entry** (DR expense, CR bank)
-8. **(Unauthorized)** slip_type=Other → orange warning → **Actions → No Action Required** with reason
-9. Submit created PI/JE in ERPNext → OCR Fleet Slip status automatically moves to Completed
+4. Vehicle matched → supplier auto-set (fleet card provider or default supplier from OCR Settings)
+5. Accounts team reviews OCR Fleet Slip — verifies vehicle, amounts, supplier
+6. Click **Create → Purchase Invoice** (supplier from vehicle config or default)
+7. **(Unauthorized)** slip_type=Other → orange warning → **Actions → No Action Required** with reason
+8. Submit created PI in ERPNext → OCR Fleet Slip status automatically moves to Completed

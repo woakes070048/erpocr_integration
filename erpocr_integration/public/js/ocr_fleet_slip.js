@@ -12,15 +12,6 @@ frappe.ui.form.on('OCR Fleet Slip', {
 				}
 			};
 		});
-		frm.set_query('credit_account', function() {
-			return {
-				filters: {
-					company: frm.doc.company,
-					is_group: 0,
-					disabled: 0
-				}
-			};
-		});
 		frm.set_query('cost_center', function() {
 			return {
 				filters: {
@@ -40,25 +31,11 @@ frappe.ui.form.on('OCR Fleet Slip', {
 	refresh: function(frm) {
 		fleet_set_status_intro(frm);
 
-		// Create buttons — gated on reviewable status
+		// Create Purchase Invoice — gated on reviewable status
 		if (!frm.is_new() && ['Matched', 'Needs Review'].includes(frm.doc.status)) {
-			if (frm.doc.posting_mode === 'Fleet Card') {
-				frm.add_custom_button(__('Purchase Invoice'), function() {
-					fleet_create_document(frm, 'Purchase Invoice', 'create_purchase_invoice');
-				}, __('Create'));
-			} else if (frm.doc.posting_mode === 'Direct Expense') {
-				frm.add_custom_button(__('Journal Entry'), function() {
-					fleet_create_document(frm, 'Journal Entry', 'create_journal_entry');
-				}, __('Create'));
-			} else {
-				// Posting mode not set — show both options
-				frm.add_custom_button(__('Purchase Invoice'), function() {
-					fleet_create_document(frm, 'Purchase Invoice', 'create_purchase_invoice');
-				}, __('Create'));
-				frm.add_custom_button(__('Journal Entry'), function() {
-					fleet_create_document(frm, 'Journal Entry', 'create_journal_entry');
-				}, __('Create'));
-			}
+			frm.add_custom_button(__('Purchase Invoice'), function() {
+				fleet_create_document(frm, 'Purchase Invoice', 'create_purchase_invoice');
+			}, __('Create'));
 		}
 
 		// Unlink & Reset
@@ -138,7 +115,6 @@ frappe.ui.form.on('OCR Fleet Slip', {
 			frm.set_value('posting_mode', '');
 			frm.set_value('fleet_card_supplier', '');
 			frm.set_value('expense_account', '');
-			frm.set_value('credit_account', '');
 			frm.set_value('cost_center', '');
 		}
 	}
@@ -161,18 +137,14 @@ function fleet_set_status_intro(frm) {
 		var error_msg = frm.doc.error_log ? ': ' + frappe.utils.escape_html(frm.doc.error_log.substring(0, 200)) : '';
 		frm.set_intro(__('Extraction failed') + error_msg, 'red');
 	} else if (status === 'Needs Review') {
-		frm.set_intro(__('Review extracted data, verify vehicle and posting mode, then use the Create dropdown.'), 'orange');
+		frm.set_intro(__('Review extracted data and verify vehicle match, then click Create > Purchase Invoice.'), 'orange');
 	} else if (status === 'Matched') {
-		var mode = frm.doc.posting_mode === 'Fleet Card' ? __('Purchase Invoice') : __('Journal Entry');
-		frm.set_intro(__('Ready to create {0}. Use the Create dropdown above.', [mode]), 'blue');
+		frm.set_intro(__('Ready to create Purchase Invoice. Use the Create button above.'), 'blue');
 	} else if (status === 'Draft Created') {
 		var link = '';
 		if (frm.doc.purchase_invoice) {
 			link = '<a href="/app/purchase-invoice/' + encodeURIComponent(frm.doc.purchase_invoice) + '">' +
 				frappe.utils.escape_html(frm.doc.purchase_invoice) + '</a>';
-		} else if (frm.doc.journal_entry) {
-			link = '<a href="/app/journal-entry/' + encodeURIComponent(frm.doc.journal_entry) + '">' +
-				frappe.utils.escape_html(frm.doc.journal_entry) + '</a>';
 		}
 		frm.set_intro(__('Draft created: {0}. Submit it to complete, or Unlink & Reset to start over.', [link]), 'blue');
 	} else if (status === 'No Action') {
@@ -183,9 +155,6 @@ function fleet_set_status_intro(frm) {
 		if (frm.doc.purchase_invoice) {
 			completed_link = '<a href="/app/purchase-invoice/' + encodeURIComponent(frm.doc.purchase_invoice) + '">' +
 				frappe.utils.escape_html(frm.doc.purchase_invoice) + '</a>';
-		} else if (frm.doc.journal_entry) {
-			completed_link = '<a href="/app/journal-entry/' + encodeURIComponent(frm.doc.journal_entry) + '">' +
-				frappe.utils.escape_html(frm.doc.journal_entry) + '</a>';
 		}
 		frm.set_intro(__('Completed: {0}', [completed_link]), 'green');
 	}

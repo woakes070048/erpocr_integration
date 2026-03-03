@@ -9,7 +9,7 @@ Handles:
 - Populating OCR Fleet Slip from extracted data (_populate_ocr_fleet)
 - Vehicle matching (_match_vehicle, _apply_vehicle_config)
 - Tax template selection
-- doc_events hooks for PI/JE submit/cancel
+- doc_events hooks for PI submit/cancel
 - Retry endpoint
 """
 
@@ -209,15 +209,15 @@ def _match_vehicle(ocr_fleet, settings):
 
 
 def _apply_vehicle_config(ocr_fleet, vehicle, settings):
-	"""Set posting mode and accounts from vehicle configuration."""
+	"""Set posting mode, supplier, and accounts from vehicle configuration."""
 	if vehicle.get("custom_fleet_card_provider"):
 		ocr_fleet.posting_mode = "Fleet Card"
 		ocr_fleet.fleet_card_supplier = vehicle.custom_fleet_card_provider
 		ocr_fleet.expense_account = vehicle.get("custom_fleet_control_account") or ""
 	else:
 		ocr_fleet.posting_mode = "Direct Expense"
+		ocr_fleet.fleet_card_supplier = settings.get("fleet_default_supplier") or ""
 		ocr_fleet.expense_account = settings.get("fleet_expense_account") or ""
-		ocr_fleet.credit_account = settings.get("fleet_credit_account") or ""
 
 	if vehicle.get("custom_cost_center"):
 		ocr_fleet.cost_center = vehicle.custom_cost_center
@@ -227,14 +227,10 @@ def _apply_vehicle_config(ocr_fleet, vehicle, settings):
 
 
 def update_ocr_fleet_on_submit(doc, method):
-	"""Called when a PI or JE is submitted — mark linked OCR Fleet Slip as Completed."""
-	field_map = {
-		"Purchase Invoice": "purchase_invoice",
-		"Journal Entry": "journal_entry",
-	}
-	field = field_map.get(doc.doctype)
-	if not field:
+	"""Called when a PI is submitted — mark linked OCR Fleet Slip as Completed."""
+	if doc.doctype != "Purchase Invoice":
 		return
+	field = "purchase_invoice"
 
 	# Find OCR Fleet Slip where field == doc.name and status == "Draft Created"
 	fleet_slips = frappe.get_all(
@@ -251,14 +247,10 @@ def update_ocr_fleet_on_submit(doc, method):
 
 
 def update_ocr_fleet_on_cancel(doc, method):
-	"""Called when a PI or JE is cancelled — reset linked OCR Fleet Slip to Matched."""
-	field_map = {
-		"Purchase Invoice": "purchase_invoice",
-		"Journal Entry": "journal_entry",
-	}
-	field = field_map.get(doc.doctype)
-	if not field:
+	"""Called when a PI is cancelled — reset linked OCR Fleet Slip to Matched."""
+	if doc.doctype != "Purchase Invoice":
 		return
+	field = "purchase_invoice"
 
 	fleet_slips = frappe.get_all(
 		"OCR Fleet Slip",

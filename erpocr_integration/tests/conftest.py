@@ -347,7 +347,7 @@ def sample_settings():
 		fleet_fuel_item="",
 		fleet_toll_item="",
 		fleet_expense_account="",
-		fleet_credit_account="",
+		fleet_default_supplier="",
 	)
 
 

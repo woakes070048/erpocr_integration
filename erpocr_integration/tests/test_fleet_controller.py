@@ -28,7 +28,7 @@ def _make_settings(**overrides):
 		fleet_fuel_item="FUEL-001",
 		fleet_toll_item="TOLL-001",
 		fleet_expense_account="5000 - Fuel Expense - TC",
-		fleet_credit_account="1200 - Bank - TC",
+		fleet_default_supplier="Default Supplier",
 		default_item="DEFAULT-ITEM",
 	)
 	defaults.update(overrides)
@@ -54,7 +54,6 @@ def _make_fleet_slip(**overrides):
 	doc.posting_mode = "Fleet Card"
 	doc.fleet_card_supplier = "WesBank"
 	doc.expense_account = "3100 - Fleet Control - TC"
-	doc.credit_account = ""
 	doc.cost_center = "Transport - TC"
 	doc.company = "Test Company"
 	doc.litres = 50.0
@@ -67,7 +66,6 @@ def _make_fleet_slip(**overrides):
 	doc.tax_template = ""
 	doc.document_type = ""
 	doc.purchase_invoice = None
-	doc.journal_entry = None
 	doc.no_action_reason = None
 	doc.drive_link = None
 	doc.drive_file_id = None
@@ -91,12 +89,12 @@ def _make_fleet_slip(**overrides):
 
 class TestUpdateStatus:
 	def test_matched_when_all_ready(self):
-		"""Status becomes Matched when data + vehicle + posting mode are present."""
+		"""Status becomes Matched when data + vehicle + supplier are present."""
 		doc = _make_fleet_slip(
 			status="Pending",
 			merchant_name_ocr="Shell",
 			fleet_vehicle="VEH-001",
-			posting_mode="Fleet Card",
+			fleet_card_supplier="WesBank",
 		)
 		doc._update_status()
 		assert doc.status == "Matched"
@@ -108,18 +106,18 @@ class TestUpdateStatus:
 			merchant_name_ocr="Shell",
 			fleet_vehicle=None,
 			vehicle_registration="",
-			posting_mode="",
+			fleet_card_supplier="",
 		)
 		doc._update_status()
 		assert doc.status == "Needs Review"
 
-	def test_needs_review_no_posting_mode(self):
-		"""Status stays Needs Review when posting_mode is missing."""
+	def test_needs_review_no_supplier(self):
+		"""Status stays Needs Review when supplier is missing."""
 		doc = _make_fleet_slip(
 			status="Pending",
 			merchant_name_ocr="Shell",
 			vehicle_registration="ABC",
-			posting_mode="",
+			fleet_card_supplier="",
 		)
 		doc._update_status()
 		assert doc.status == "Needs Review"
@@ -129,15 +127,6 @@ class TestUpdateStatus:
 		doc = _make_fleet_slip(
 			status="Pending",
 			purchase_invoice="PI-00001",
-		)
-		doc._update_status()
-		assert doc.status == "Draft Created"
-
-	def test_draft_created_when_je_linked(self):
-		"""Status becomes Draft Created when JE is linked."""
-		doc = _make_fleet_slip(
-			status="Pending",
-			journal_entry="JE-00001",
 		)
 		doc._update_status()
 		assert doc.status == "Draft Created"
@@ -169,7 +158,7 @@ class TestUpdateStatus:
 			merchant_name_ocr="Shell",
 			fleet_vehicle=None,
 			vehicle_registration="ABC 123",
-			posting_mode="Direct Expense",
+			fleet_card_supplier="Default Supplier",
 		)
 		doc._update_status()
 		assert doc.status == "Matched"
@@ -182,7 +171,7 @@ class TestUpdateStatus:
 			slip_type="",
 			total_amount=100,
 			vehicle_registration="ABC",
-			posting_mode="Fleet Card",
+			fleet_card_supplier="WesBank",
 		)
 		doc._update_status()
 		assert doc.status == "Matched"
@@ -201,7 +190,7 @@ class TestCreatePurchaseInvoice:
 		mock_pi.items = [MagicMock()]
 		mock_pi.items[0].item_name = "FUEL-001"
 		mock_frappe.get_doc.return_value = mock_pi
-		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None, journal_entry=None)
+		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None)
 		mock_frappe.get_cached_doc.return_value = _make_settings()
 		mock_frappe.get_all.return_value = []
 
@@ -223,12 +212,12 @@ class TestCreatePurchaseInvoice:
 			doc.create_purchase_invoice()
 
 	def test_blocks_wrong_document_type(self, mock_frappe):
-		doc = _make_fleet_slip(status="Matched", document_type="Journal Entry")
+		doc = _make_fleet_slip(status="Matched", document_type="")
 		with pytest.raises(Exception):
 			doc.create_purchase_invoice()
 
 	def test_blocks_no_supplier(self, mock_frappe):
-		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None, journal_entry=None)
+		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None)
 		doc = _make_fleet_slip(
 			status="Matched",
 			document_type="Purchase Invoice",
@@ -238,7 +227,7 @@ class TestCreatePurchaseInvoice:
 			doc.create_purchase_invoice()
 
 	def test_blocks_no_item(self, mock_frappe):
-		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None, journal_entry=None)
+		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None)
 		mock_frappe.get_cached_doc.return_value = _make_settings(
 			fleet_fuel_item="", fleet_toll_item="", default_item=""
 		)
@@ -250,18 +239,7 @@ class TestCreatePurchaseInvoice:
 			doc.create_purchase_invoice()
 
 	def test_blocks_duplicate_creation(self, mock_frappe):
-		mock_frappe.db.get_value.return_value = SimpleNamespace(
-			purchase_invoice="PI-EXISTS", journal_entry=None
-		)
-		doc = _make_fleet_slip(status="Matched", document_type="Purchase Invoice")
-		with pytest.raises(Exception):
-			doc.create_purchase_invoice()
-
-	def test_blocks_je_already_exists(self, mock_frappe):
-		"""Row-lock blocks when JE already created."""
-		mock_frappe.db.get_value.return_value = SimpleNamespace(
-			purchase_invoice=None, journal_entry="JE-EXISTS"
-		)
+		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice="PI-EXISTS")
 		doc = _make_fleet_slip(status="Matched", document_type="Purchase Invoice")
 		with pytest.raises(Exception):
 			doc.create_purchase_invoice()
@@ -273,7 +251,7 @@ class TestCreatePurchaseInvoice:
 		mock_pi.items = [MagicMock()]
 		mock_pi.items[0].item_name = "FUEL-001"
 		mock_frappe.get_doc.return_value = mock_pi
-		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None, journal_entry=None)
+		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None)
 		mock_frappe.get_cached_doc.return_value = _make_settings()
 		mock_frappe.get_all.return_value = []
 
@@ -294,7 +272,7 @@ class TestCreatePurchaseInvoice:
 		mock_pi.items = [MagicMock()]
 		mock_pi.items[0].item_name = "FUEL-001"
 		mock_frappe.get_doc.return_value = mock_pi
-		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None, journal_entry=None)
+		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None)
 		mock_frappe.get_cached_doc.return_value = _make_settings()
 		mock_frappe.get_all.return_value = []
 
@@ -315,7 +293,7 @@ class TestCreatePurchaseInvoice:
 		mock_pi.items = [MagicMock()]
 		mock_pi.items[0].item_name = "FUEL-001"
 		mock_frappe.get_doc.return_value = mock_pi
-		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None, journal_entry=None)
+		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None)
 		mock_frappe.get_cached_doc.return_value = _make_settings()
 		mock_frappe.get_all.return_value = []
 
@@ -361,7 +339,7 @@ class TestCreatePurchaseInvoice:
 
 		mock_frappe.get_cached_doc.side_effect = get_cached_side_effect
 		mock_frappe.get_doc.return_value = mock_pi
-		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None, journal_entry=None)
+		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None)
 		mock_frappe.get_all.return_value = []
 
 		doc = _make_fleet_slip(
@@ -389,7 +367,7 @@ class TestCreatePurchaseInvoice:
 		mock_pi.items = [MagicMock()]
 		mock_pi.items[0].item_name = "FUEL-001"
 		mock_frappe.get_doc.return_value = mock_pi
-		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None, journal_entry=None)
+		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None)
 		mock_frappe.get_cached_doc.return_value = _make_settings()
 		mock_frappe.get_all.return_value = []
 
@@ -399,205 +377,6 @@ class TestCreatePurchaseInvoice:
 		)
 		doc.create_purchase_invoice()
 		assert doc.purchase_invoice == "PI-00002"
-
-
-# ---------------------------------------------------------------------------
-# TestCreateJournalEntry
-# ---------------------------------------------------------------------------
-
-
-class TestCreateJournalEntry:
-	def test_creates_je_draft(self, mock_frappe):
-		"""Successfully creates JE draft in direct expense mode."""
-		mock_je = MagicMock()
-		mock_je.name = "JE-00001"
-		mock_frappe.get_doc.return_value = mock_je
-		mock_frappe.db.get_value.side_effect = [
-			SimpleNamespace(purchase_invoice=None, journal_entry=None),  # row-lock
-			SimpleNamespace(company="Test Company", is_group=0, disabled=0),  # expense_account
-			SimpleNamespace(company="Test Company", is_group=0, disabled=0),  # credit_account
-			None,  # credit_account_type
-		]
-		mock_frappe.get_cached_doc.return_value = _make_settings()
-		mock_frappe.get_all.return_value = []
-
-		doc = _make_fleet_slip(
-			status="Matched",
-			document_type="Journal Entry",
-			posting_mode="Direct Expense",
-			expense_account="5000 - Fuel Expense - TC",
-			credit_account="1200 - Bank - TC",
-			fleet_card_supplier="",
-		)
-		doc.create_journal_entry()
-
-		assert doc.journal_entry == "JE-00001"
-		assert doc.status == "Draft Created"
-		mock_je.insert.assert_called_once()
-
-	def test_je_accounts_structure(self, mock_frappe):
-		"""JE has correct debit and credit lines."""
-		mock_je = MagicMock()
-		mock_je.name = "JE-00002"
-		mock_frappe.get_doc.return_value = mock_je
-		mock_frappe.db.get_value.side_effect = [
-			SimpleNamespace(purchase_invoice=None, journal_entry=None),
-			SimpleNamespace(company="Test Company", is_group=0, disabled=0),
-			SimpleNamespace(company="Test Company", is_group=0, disabled=0),
-			None,  # credit_account_type
-		]
-		mock_frappe.get_cached_doc.return_value = _make_settings()
-		mock_frappe.get_all.return_value = []
-
-		doc = _make_fleet_slip(
-			status="Matched",
-			document_type="Journal Entry",
-			total_amount=900.00,
-			expense_account="5000 - Fuel Expense - TC",
-			credit_account="1200 - Bank - TC",
-		)
-		doc.create_journal_entry()
-
-		je_dict = mock_frappe.get_doc.call_args[0][0]
-		accounts = je_dict["accounts"]
-
-		# First account: debit line (expense)
-		assert accounts[0]["debit_in_account_currency"] == 900.0
-		assert accounts[0]["credit_in_account_currency"] == 0
-
-		# Last account: credit line (bank)
-		assert accounts[-1]["credit_in_account_currency"] == 900.0
-		assert accounts[-1]["debit_in_account_currency"] == 0
-
-	def test_je_with_vat(self, mock_frappe):
-		"""JE includes VAT debit line when tax detected."""
-		mock_je = MagicMock()
-		mock_je.name = "JE-00003"
-		mock_frappe.get_doc.return_value = mock_je
-
-		mock_tax = MagicMock()
-		mock_tax.taxes = [
-			SimpleNamespace(account_head="2300 - VAT Input - TC"),
-		]
-
-		def db_get_value_side_effect(doctype, name, fields=None, **kw):
-			if doctype == "OCR Fleet Slip":
-				return SimpleNamespace(purchase_invoice=None, journal_entry=None)
-			if doctype == "Account" and fields:
-				return SimpleNamespace(company="Test Company", is_group=0, disabled=0)
-			if doctype == "Account":
-				return None  # account_type
-			return None
-
-		mock_frappe.db.get_value.side_effect = db_get_value_side_effect
-
-		def get_cached_side_effect(doctype, name=None):
-			if doctype == "Purchase Taxes and Charges Template":
-				return mock_tax
-			return _make_settings()
-
-		mock_frappe.get_cached_doc.side_effect = get_cached_side_effect
-		mock_frappe.get_all.return_value = []
-
-		doc = _make_fleet_slip(
-			status="Matched",
-			document_type="Journal Entry",
-			total_amount=95.00,
-			vat_amount=14.13,
-			tax_template="SA VAT 15%",
-			expense_account="5000 - Fuel Expense - TC",
-			credit_account="1200 - Bank - TC",
-		)
-		doc.create_journal_entry()
-
-		je_dict = mock_frappe.get_doc.call_args[0][0]
-		accounts = je_dict["accounts"]
-
-		# Should have 3 lines: expense debit + VAT debit + credit
-		assert len(accounts) == 3
-		assert accounts[1]["debit_in_account_currency"] == 14.13
-		# Credit should balance: 95 + 14.13 = 109.13
-		assert accounts[2]["credit_in_account_currency"] == 109.13
-
-	def test_blocks_wrong_status(self, mock_frappe):
-		doc = _make_fleet_slip(status="Draft Created", document_type="Journal Entry")
-		with pytest.raises(Exception):
-			doc.create_journal_entry()
-
-	def test_blocks_wrong_document_type(self, mock_frappe):
-		doc = _make_fleet_slip(status="Matched", document_type="Purchase Invoice")
-		with pytest.raises(Exception):
-			doc.create_journal_entry()
-
-	def test_blocks_no_expense_account(self, mock_frappe):
-		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None, journal_entry=None)
-		mock_frappe.get_cached_doc.return_value = _make_settings(fleet_expense_account="")
-		doc = _make_fleet_slip(
-			status="Matched",
-			document_type="Journal Entry",
-			expense_account="",
-		)
-		with pytest.raises(Exception):
-			doc.create_journal_entry()
-
-	def test_blocks_no_credit_account(self, mock_frappe):
-		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None, journal_entry=None)
-		mock_frappe.get_cached_doc.return_value = _make_settings(fleet_credit_account="")
-		doc = _make_fleet_slip(
-			status="Matched",
-			document_type="Journal Entry",
-			expense_account="5000 - Fuel Expense - TC",
-			credit_account="",
-		)
-		with pytest.raises(Exception):
-			doc.create_journal_entry()
-
-	def test_blocks_duplicate_je(self, mock_frappe):
-		mock_frappe.db.get_value.return_value = SimpleNamespace(
-			purchase_invoice=None, journal_entry="JE-EXISTS"
-		)
-		doc = _make_fleet_slip(status="Matched", document_type="Journal Entry")
-		with pytest.raises(Exception):
-			doc.create_journal_entry()
-
-	def test_je_payable_account_sets_party(self, mock_frappe):
-		"""Payable credit account sets party_type and party."""
-		mock_je = MagicMock()
-		mock_je.name = "JE-00004"
-		mock_frappe.get_doc.return_value = mock_je
-
-		def db_get_value_side_effect(doctype, name, fields=None, **kw):
-			if doctype == "OCR Fleet Slip":
-				return SimpleNamespace(purchase_invoice=None, journal_entry=None)
-			if doctype == "Account" and isinstance(fields, list):
-				return SimpleNamespace(company="Test Company", is_group=0, disabled=0)
-			if doctype == "Account":
-				return "Payable"  # account_type for scalar query
-			return None
-
-		mock_frappe.db.get_value.side_effect = db_get_value_side_effect
-		mock_frappe.get_cached_doc.return_value = _make_settings()
-		mock_frappe.get_all.return_value = []
-
-		doc = _make_fleet_slip(
-			status="Matched",
-			document_type="Journal Entry",
-			expense_account="5000 - Fuel Expense - TC",
-			credit_account="2100 - Accounts Payable - TC",
-			fleet_card_supplier="WesBank",
-		)
-		doc.create_journal_entry()
-
-		je_dict = mock_frappe.get_doc.call_args[0][0]
-		credit_line = je_dict["accounts"][-1]
-		assert credit_line["party_type"] == "Supplier"
-		assert credit_line["party"] == "WesBank"
-
-	def test_je_permission_check(self, mock_frappe):
-		mock_frappe.has_permission.return_value = False
-		doc = _make_fleet_slip(status="Matched", document_type="Journal Entry")
-		with pytest.raises(Exception):
-			doc.create_journal_entry()
 
 
 # ---------------------------------------------------------------------------
@@ -620,18 +399,6 @@ class TestUnlinkDocument:
 		doc.db_set.assert_any_call("status", "Pending")
 		mock_frappe.delete_doc.assert_called_once_with("Purchase Invoice", "PI-00001", force=True)
 
-	def test_unlinks_je(self, mock_frappe):
-		"""Unlink & Reset deletes draft JE and resets."""
-		mock_frappe.db.get_value.return_value = 0
-		doc = _make_fleet_slip(
-			status="Draft Created",
-			journal_entry="JE-00001",
-		)
-		doc.unlink_document()
-
-		doc.db_set.assert_any_call("journal_entry", "")
-		mock_frappe.delete_doc.assert_called_once_with("Journal Entry", "JE-00001", force=True)
-
 	def test_blocks_submitted(self, mock_frappe):
 		"""Cannot unlink submitted document."""
 		mock_frappe.db.get_value.return_value = 1  # submitted
@@ -653,7 +420,6 @@ class TestUnlinkDocument:
 		doc = _make_fleet_slip(
 			status="Draft Created",
 			purchase_invoice=None,
-			journal_entry=None,
 		)
 		with pytest.raises(Exception):
 			doc.unlink_document()
@@ -831,51 +597,6 @@ class TestBuildDescription:
 
 
 # ---------------------------------------------------------------------------
-# TestValidateAccount
-# ---------------------------------------------------------------------------
-
-
-class TestValidateAccount:
-	def test_valid_account(self, mock_frappe):
-		mock_frappe.db.get_value.return_value = SimpleNamespace(
-			company="Test Company", is_group=0, disabled=0
-		)
-		doc = _make_fleet_slip()
-		doc._validate_account("5000 - Expense - TC", "Test")
-		# Should not raise
-
-	def test_nonexistent_account(self, mock_frappe):
-		mock_frappe.db.get_value.return_value = None
-		doc = _make_fleet_slip()
-		with pytest.raises(Exception):
-			doc._validate_account("FAKE-ACCOUNT", "Test")
-
-	def test_wrong_company(self, mock_frappe):
-		mock_frappe.db.get_value.return_value = SimpleNamespace(
-			company="Other Company", is_group=0, disabled=0
-		)
-		doc = _make_fleet_slip()
-		with pytest.raises(Exception):
-			doc._validate_account("5000 - Expense - OC", "Test")
-
-	def test_group_account(self, mock_frappe):
-		mock_frappe.db.get_value.return_value = SimpleNamespace(
-			company="Test Company", is_group=1, disabled=0
-		)
-		doc = _make_fleet_slip()
-		with pytest.raises(Exception):
-			doc._validate_account("5000 - Expenses - TC", "Test")
-
-	def test_disabled_account(self, mock_frappe):
-		mock_frappe.db.get_value.return_value = SimpleNamespace(
-			company="Test Company", is_group=0, disabled=1
-		)
-		doc = _make_fleet_slip()
-		with pytest.raises(Exception):
-			doc._validate_account("5000 - Closed - TC", "Test")
-
-
-# ---------------------------------------------------------------------------
 # TestCopyScanToDocument
 # ---------------------------------------------------------------------------
 
@@ -967,8 +688,8 @@ class TestApplyVehicleConfigFromLink:
 		doc._apply_vehicle_config_from_link()
 
 		assert doc.posting_mode == "Direct Expense"
+		assert doc.fleet_card_supplier == "Default Supplier"
 		assert doc.expense_account == "5000 - Fuel Expense - TC"
-		assert doc.credit_account == "1200 - Bank - TC"
 
 	def test_skips_when_no_fleet_vehicle_doctype(self, mock_frappe):
 		mock_frappe.db.exists.return_value = False

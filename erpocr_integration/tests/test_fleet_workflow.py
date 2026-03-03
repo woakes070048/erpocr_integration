@@ -42,7 +42,7 @@ def _make_settings(**overrides):
 		fleet_fuel_item="FUEL-001",
 		fleet_toll_item="TOLL-001",
 		fleet_expense_account="5000 - Fuel Expense - TC",
-		fleet_credit_account="1200 - Bank - TC",
+		fleet_default_supplier="Default Supplier",
 		default_item=None,
 	)
 	defaults.update(overrides)
@@ -69,7 +69,6 @@ class MockFleetSlip:
 		self.posting_mode = kw.get("posting_mode", "")
 		self.fleet_card_supplier = kw.get("fleet_card_supplier", "")
 		self.expense_account = kw.get("expense_account", "")
-		self.credit_account = kw.get("credit_account", "")
 		self.cost_center = kw.get("cost_center", "")
 		self.company = kw.get("company", "")
 		self.litres = kw.get("litres", 0)
@@ -82,7 +81,6 @@ class MockFleetSlip:
 		self.raw_payload = ""
 		self.tax_template = kw.get("tax_template", "")
 		self.purchase_invoice = kw.get("purchase_invoice", None)
-		self.journal_entry = kw.get("journal_entry", None)
 		self.drive_file_id = kw.get("drive_file_id", None)
 
 	def get(self, key, default=None):
@@ -195,10 +193,10 @@ class TestFuelSlipFleetCardWorkflow:
 
 
 class TestFuelSlipDirectExpenseWorkflow:
-	"""Scenario B: Fuel slip + bank card vehicle → JE."""
+	"""Scenario B: Fuel slip + bank card vehicle → PI with default supplier."""
 
 	def test_populate_then_match_direct_expense(self, mock_frappe):
-		"""Full pipeline: populate → match → direct expense config applied."""
+		"""Full pipeline: populate → match → direct expense config with default supplier."""
 		mock_frappe.db.exists.return_value = True
 		mock_frappe.db.get_value.return_value = _NS(
 			name="VEH-002",
@@ -235,21 +233,11 @@ class TestFuelSlipDirectExpenseWorkflow:
 		_populate_ocr_fleet(doc, extracted, settings)
 		_run_fleet_matching(doc, settings)
 
-		# Verify direct expense config
+		# Verify direct expense config with default supplier
 		assert doc.posting_mode == "Direct Expense"
+		assert doc.fleet_card_supplier == "Default Supplier"
 		assert doc.expense_account == "5000 - Fuel Expense - TC"
-		assert doc.credit_account == "1200 - Bank - TC"
 		assert doc.cost_center == "Head Office - TC"
-		assert doc.fleet_card_supplier == ""  # no supplier for direct expense
-
-	def test_je_submit_completes_fleet_slip(self, mock_frappe):
-		"""JE submit → fleet slip Completed."""
-		mock_frappe.get_all.return_value = ["OCR-FS-00002"]
-
-		je_doc = SimpleNamespace(doctype="Journal Entry", name="JE-00001")
-		update_ocr_fleet_on_submit(je_doc, "on_submit")
-
-		mock_frappe.db.set_value.assert_called_with("OCR Fleet Slip", "OCR-FS-00002", "status", "Completed")
 
 
 # ---------------------------------------------------------------------------
@@ -288,13 +276,12 @@ class TestUnauthorizedPurchaseWorkflow:
 		doc = OCRFleetSlip.__new__(OCRFleetSlip)
 		doc.status = "No Action"
 		doc.purchase_invoice = None
-		doc.journal_entry = None
 		doc.merchant_name_ocr = "Test"
 		doc.total_amount = 100
 		doc.slip_type = "Other"
 		doc.fleet_vehicle = "VEH-001"
 		doc.vehicle_registration = "ABC"
-		doc.posting_mode = "Fleet Card"
+		doc.fleet_card_supplier = "WesBank"
 
 		doc._update_status()
 		assert doc.status == "No Action"
@@ -306,7 +293,7 @@ class TestUnauthorizedPurchaseWorkflow:
 
 
 class TestTollSlipWorkflow:
-	"""Scenario D: Toll slip → PI or JE based on vehicle config."""
+	"""Scenario D: Toll slip → PI based on vehicle config."""
 
 	def test_toll_with_fleet_card(self, mock_frappe):
 		"""Toll slip + fleet card vehicle → fleet card posting mode."""
@@ -756,7 +743,7 @@ class TestPostingModeFromVehicle:
 		assert doc.fleet_card_supplier == "WesBank"
 
 	def test_no_fleet_card_provider(self):
-		"""Vehicle without fleet_card_provider → Direct Expense mode."""
+		"""Vehicle without fleet_card_provider → Direct Expense mode with default supplier."""
 		settings = _make_settings()
 		doc = MockFleetSlip()
 		vehicle = _NS(
@@ -767,7 +754,7 @@ class TestPostingModeFromVehicle:
 		_apply_vehicle_config(doc, vehicle, settings)
 
 		assert doc.posting_mode == "Direct Expense"
-		assert doc.fleet_card_supplier == ""  # unchanged from default
+		assert doc.fleet_card_supplier == "Default Supplier"
 
 	def test_control_account_from_vehicle(self):
 		"""Fleet card mode uses vehicle's control account."""
@@ -783,10 +770,10 @@ class TestPostingModeFromVehicle:
 		assert doc.expense_account == "3100 - WesBank Control - TC"
 
 	def test_direct_expense_uses_settings_accounts(self):
-		"""Direct expense mode uses OCR Settings accounts."""
+		"""Direct expense mode uses OCR Settings accounts and default supplier."""
 		settings = _make_settings(
 			fleet_expense_account="5100 - Vehicle Expense - TC",
-			fleet_credit_account="1100 - Petty Cash - TC",
+			fleet_default_supplier="Cash Purchases",
 		)
 		doc = MockFleetSlip()
 		vehicle = _NS(
@@ -797,4 +784,4 @@ class TestPostingModeFromVehicle:
 		_apply_vehicle_config(doc, vehicle, settings)
 
 		assert doc.expense_account == "5100 - Vehicle Expense - TC"
-		assert doc.credit_account == "1100 - Petty Cash - TC"
+		assert doc.fleet_card_supplier == "Cash Purchases"
