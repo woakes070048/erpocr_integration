@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">ERPNext OCR Integration</h1>
   <p align="center">
-    Gemini AI-powered invoice data extraction for ERPNext
+    Gemini AI-powered document extraction for ERPNext — invoices, delivery notes, and fleet slips
   </p>
 </p>
 
@@ -12,29 +12,44 @@
   <a href="https://github.com/wphamman/erpocr_integration/blob/master/license.txt">
     <img src="https://img.shields.io/badge/license-GPLv3-blue.svg" alt="License: GPLv3">
   </a>
-  <img src="https://img.shields.io/badge/version-0.4.0-green" alt="Version 0.4.0">
+  <img src="https://img.shields.io/badge/version-0.6.0-green" alt="Version 0.6.0">
   <img src="https://img.shields.io/badge/ERPNext-v15-blue" alt="ERPNext v15">
   <img src="https://img.shields.io/badge/python-3.10+-blue" alt="Python 3.10+">
 </p>
 
 ---
 
-A [Frappe](https://frappeframework.com/) custom app that uses Google's **Gemini 2.5 Flash** API to extract structured invoice data from PDFs and images, and create Purchase Invoice, Purchase Receipt, or Journal Entry drafts in ERPNext. Essentially free at small volume (~$0.0001 per invoice).
+A [Frappe](https://frappeframework.com/) custom app that uses Google's **Gemini 2.5 Flash** API to extract structured data from PDFs and images, and create draft documents in ERPNext. Three pipelines: **invoices**, **delivery notes**, and **fleet slips**. Essentially free at small volume (~$0.0001 per document).
 
 ## Features
 
+### Invoice Pipeline (OCR Import)
 - **File Upload** — Upload PDF, JPEG, or PNG invoices via the OCR Import form
 - **Email Monitoring** — Forward invoice emails to a monitored inbox for automatic processing
 - **Google Drive Scanning** — Drop files into a Drive folder for batch processing every 15 minutes
 - **Multi-Invoice PDFs** — Handles statements/batch scans with multiple invoices per PDF
-- **Gemini AI Extraction** — Structured JSON output with supplier, line items, amounts, dates, and currency
 - **Smart Matching** — Exact match, fuzzy match (difflib), service item mappings, and a learning alias system
-- **Tax Template Mapping** — Auto-selects VAT or non-VAT template based on detected tax amounts
 - **User-Driven Document Creation** — Review extraction, confirm matches, then choose what to create:
   - **Purchase Invoice** — with optional Purchase Order and Purchase Receipt linking
   - **Purchase Receipt** — with optional Purchase Order linking
-  - **Journal Entry** — for expense receipts (restaurant bills, tolls, entertainment)
+  - **Journal Entry** — for expense receipts (restaurant bills, entertainment)
 - **Purchase Order Linking** — Match OCR items to PO items, link PRs, close the full PO→PR→PI chain
+
+### Delivery Note Pipeline (OCR Delivery Note)
+- **Drive Scanning** — Factory staff drop delivery note scans into a dedicated Drive folder
+- **Qty-Focused Matching** — Compares DN quantities against PO remaining quantities (no financial fields)
+- **Create PO or PR** — Link to existing PO and create Purchase Receipt, or create a draft PO for informal procurement
+
+### Fleet Slip Pipeline (OCR Fleet Slip)
+- **Drive Scanning** — Drivers drop fuel and toll slip photos into a dedicated Drive folder
+- **Slip Classification** — Gemini identifies Fuel, Toll, or Other (unauthorized purchases flagged)
+- **Vehicle Matching** — Registration number matched to Fleet Vehicle for auto-configured posting
+- **Per-Vehicle Posting** — Fleet card vehicles use card provider as supplier; direct expense vehicles use a default supplier
+- **Always Purchase Invoice** — All fleet slips create PIs (no JE path)
+
+### Shared Features
+- **Gemini AI Extraction** — Structured JSON output with confidence scoring
+- **Tax Template Mapping** — Auto-selects VAT or non-VAT template based on detected tax amounts
 - **Google Drive Archiving** — Organises processed files into Year/Month/Supplier folders
 - **Confidence Scoring** — Gemini self-reports extraction confidence (displayed as colour-coded badge)
 - **Dashboard** — Workspace with KPI number cards, status chart, and quick links
@@ -42,17 +57,9 @@ A [Frappe](https://frappeframework.com/) custom app that uses Google's **Gemini 
 ## How It Works
 
 ```
-File Input (Upload PDF/Image, Email, or Drive)
-    ↓
-Gemini 2.5 Flash API (structured JSON extraction)
-    ↓
-OCR Import Record (staging — extracted data)
-    ↓
-Matching Engine (supplier aliases → item aliases → fuzzy → service mappings)
-    ↓
-User Review (confirm matches, select document type, optional PO linking)
-    ↓
-Create Document (Purchase Invoice, Purchase Receipt, or Journal Entry draft)
+Invoice:       Upload/Email/Drive → Gemini API → OCR Import → Match → Review → PI / PR / JE
+Delivery Note: Drive scan → Gemini API → OCR Delivery Note → Match → Review → PO / PR
+Fleet Slip:    Drive scan → Gemini API → OCR Fleet Slip → Vehicle Match → Review → PI
 ```
 
 No documents are created automatically — every decision is made by the user.
@@ -125,37 +132,41 @@ If your current alias setup cannot enforce sender restrictions cleanly, route `i
 3. Enable **Drive Integration** in OCR Settings
 4. Paste the service account JSON (stored encrypted)
 5. Set the **Archive Folder ID** and optionally a **Scan Inbox Folder ID**
+6. Optionally set **DN Scan Folder ID** and **DN Archive Folder ID** for delivery note scanning
+7. Optionally set **Fleet Scan Folder ID** for fleet slip scanning (reuses the main archive folder)
 
 ## Usage
 
-### Manual Upload
-1. Go to **OCR Import > New**
-2. Click **Actions > Upload File** (accepts PDF, JPEG, PNG — max 10 MB)
-3. Wait 5-30 seconds for Gemini extraction
-4. Review and confirm supplier and item matches
-5. Optionally link to a Purchase Order (and Purchase Receipt)
-6. Click the **Create** dropdown → select Purchase Invoice, Purchase Receipt, or Journal Entry
-7. Draft document is created (OCR Import status → "Draft Created")
-8. Review and submit the draft in ERPNext → OCR Import moves to "Completed"
-9. Need to change? Click **Actions > Unlink & Reset** to delete the draft and try again
+### Invoices (OCR Import)
+1. Go to **OCR Import > New** and click **Upload File**, or forward to email, or drop in Drive scan folder
+2. Wait 5-30 seconds for Gemini extraction
+3. Review and confirm supplier and item matches
+4. Optionally link to a Purchase Order (and Purchase Receipt)
+5. Click the **Create** dropdown → select Purchase Invoice, Purchase Receipt, or Journal Entry
+6. Draft document is created → submit in ERPNext to complete
 
-### Email
-1. Forward invoice emails to the configured address
-2. Emails are checked hourly — PDF and image attachments are processed
-3. Review and create documents from the OCR Import list
+### Delivery Notes (OCR Delivery Note)
+1. Factory staff drop delivery note scans into the DN Drive scan folder
+2. System extracts supplier, items, and quantities (no financial data)
+3. Accounting team links to existing PO → creates Purchase Receipt, or creates draft PO if no PO exists
 
-### Drive Scan
-1. Drop PDF or image files into the configured Drive scan folder
-2. Files are checked every 15 minutes
-3. After processing, files are moved to the archive folder (Year/Month/Supplier)
+### Fleet Slips (OCR Fleet Slip)
+1. Drivers drop fuel/toll slip scans into the Fleet Drive scan folder
+2. System classifies as Fuel/Toll/Other, matches vehicle registration
+3. Accounting team reviews and clicks **Create > Purchase Invoice**
+
+See the user guides in the Documentation section below for detailed instructions.
 
 ## DocTypes
 
 | DocType | Purpose |
 |---------|---------|
 | **OCR Settings** | App configuration (API keys, defaults, thresholds) |
-| **OCR Import** | Main staging record — extracted data, match status, PO/PR links, created document links |
+| **OCR Import** | Invoice staging — extracted data, match status, PO/PR links, created PI/PR/JE |
 | **OCR Import Item** | Line items on OCR Import (with PO item and PR item references) |
+| **OCR Delivery Note** | DN staging — extracted supplier, items, quantities; creates PO or PR |
+| **OCR Delivery Note Item** | Line items on OCR DN (description, qty, UOM, item match) |
+| **OCR Fleet Slip** | Fleet slip staging — fuel/toll classification, vehicle matching; creates PI |
 | **OCR Supplier Alias** | Learned mapping: OCR text &rarr; ERPNext Supplier |
 | **OCR Item Alias** | Learned mapping: OCR text &rarr; ERPNext Item |
 | **OCR Service Mapping** | Pattern-based mapping: description &rarr; Item + GL account |
@@ -186,26 +197,35 @@ This is a standard Frappe custom app — no external middleware or separate serv
 
 ```
 erpocr_integration/
-├── api.py                          # Upload endpoint, PO/PR matching endpoints, background processing
-├── hooks.py                        # Scheduled jobs, fixtures
+├── api.py                          # Invoice upload, PO/PR matching, background processing
+├── dn_api.py                       # DN background processing, PO matching, doc_events
+├── fleet_api.py                    # Fleet background processing, vehicle matching, doc_events
+├── hooks.py                        # Scheduled jobs, doc_events, fixtures
 ├── tasks/
-│   ├── gemini_extract.py           # Gemini API integration (PDF + image support)
+│   ├── gemini_extract.py           # Gemini API (invoices, DNs, fleet slips)
 │   ├── matching.py                 # Supplier + item matching (exact, fuzzy, service)
 │   ├── process_import.py           # OCR text cleaning + parsing utilities
 │   ├── email_monitor.py            # IMAP email polling (PDF + image attachments)
-│   └── drive_integration.py        # Google Drive upload/download/scan (PDF + images)
+│   └── drive_integration.py        # Google Drive scan/download/archive (all pipelines)
 ├── erpnext_ocr/
-│   └── doctype/                    # All DocType definitions
-│       └── ocr_import/ocr_import.py  # Document creation (PI, PR, JE) with guards
-├── public/
-│   └── js/ocr_import.js            # Upload UI, PO matching dialogs, real-time progress
+│   └── doctype/
+│       ├── ocr_import/             # Invoice staging + PI/PR/JE creation
+│       ├── ocr_delivery_note/      # DN staging + PO/PR creation
+│       ├── ocr_fleet_slip/         # Fleet slip staging + PI creation
+│       └── ...                     # Settings, aliases, service mappings
+├── public/js/
+│   ├── ocr_import.js               # Invoice UI: upload, PO matching, real-time progress
+│   ├── ocr_delivery_note.js        # DN UI: PO matching (qty-focused), Create PO/PR
+│   └── ocr_fleet_slip.js           # Fleet UI: Create PI, vehicle config, unauthorized warning
 ├── patches/                        # Migration patches
-└── fixtures/                       # Dashboard charts + number cards
+└── fixtures/                       # Dashboard, custom fields on Fleet Vehicle
 ```
 
 ## Documentation
 
-- [Uploader Guide](OCR_Quick_Start_Guide.md) — For anyone sending invoices into the system
+- [Invoice Uploader Guide](OCR_Quick_Start_Guide.md) — For anyone sending invoices into the system
+- [Delivery Note Guide](OCR_Delivery_Note_Guide.md) — For factory staff scanning delivery notes
+- [Fleet Slip Guide](OCR_Fleet_Slip_Guide.md) — For drivers scanning fuel and toll slips
 - [Accountant Guide](OCR_User_Guide.md) — For accounting team: setup, review, and document creation
 
 ## Contributing
