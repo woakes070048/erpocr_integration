@@ -697,6 +697,20 @@ class OCRImport(Document):
 		accounts = []
 		total_debit = 0
 
+		# Detect tax-inclusive rates to avoid double-counting tax in JE lines.
+		# If item amounts already include tax and we add a separate tax debit line,
+		# the total would be overstated. Subtract tax proportionally from item amounts
+		# so the separate tax line balances correctly.
+		rates_inclusive = (
+			_detect_tax_inclusive_rates(self) if self.tax_template and flt(self.tax_amount) > 0 else False
+		)
+		inclusive_tax = flt(self.tax_amount, 2) if rates_inclusive else 0
+		items_gross_total = (
+			sum(flt(item.amount or (item.qty or 1) * (item.rate or 0), 2) for item in self.items)
+			if rates_inclusive
+			else 0
+		)
+
 		for item in self.items:
 			expense_account = item.expense_account or settings.get("default_expense_account")
 			if not expense_account:
@@ -713,6 +727,10 @@ class OCRImport(Document):
 			)
 
 			amount = flt(item.amount or (item.qty or 1) * (item.rate or 0), 2)
+			# If rates are tax-inclusive, subtract this item's proportional share of tax
+			if rates_inclusive and items_gross_total > 0:
+				item_tax_share = flt(inclusive_tax * amount / items_gross_total, 2)
+				amount = flt(amount - item_tax_share, 2)
 			total_debit += amount
 
 			debit_line = {

@@ -293,6 +293,61 @@ class TestCreateJournalEntry:
 		tax_line = accounts[1]
 		assert tax_line["debit_in_account_currency"] == 150.00
 
+	def test_je_with_tax_inclusive_rates_no_double_count(self, mock_frappe, sample_settings):
+		"""When item amounts include tax, JE should not double-count tax.
+
+		Example: 2 items at R575 each (incl 15% VAT) = R1150 total, R150 VAT.
+		Correct JE: DR Expense R500 + R500, DR VAT R150, CR Bank R1150.
+		Bug (before fix): DR Expense R575 + R575, DR VAT R150, CR Bank R1300.
+		"""
+		doc = _make_ocr_import(
+			document_type="Journal Entry",
+			credit_account="2100 - Accounts Payable - TC",
+			tax_template="SA VAT 15%",
+			tax_amount=150.00,
+			subtotal=1000.00,
+			total_amount=1150.00,
+			# Item amounts match total (inclusive), not subtotal
+			items=[
+				_make_item(amount=575.00, rate=575.00, qty=1),
+				_make_item(amount=575.00, rate=575.00, qty=1, item_code="ITEM-002", description_ocr="Item 2"),
+			],
+		)
+		tax_template = MagicMock()
+		tax_template.taxes = [MagicMock(account_head="2200 - VAT Input - TC")]
+
+		def get_cached_doc_handler(doctype, name=None):
+			if doctype == "OCR Settings":
+				return sample_settings
+			if doctype == "Purchase Taxes and Charges Template":
+				return tax_template
+			return MagicMock()
+
+		mock_frappe.get_cached_doc.side_effect = get_cached_doc_handler
+		mock_frappe.db.get_value.side_effect = _db_get_value_handler()
+		created_je = MagicMock()
+		created_je.name = "JE-00002"
+		mock_frappe.get_doc.return_value = created_je
+		mock_frappe.msgprint = MagicMock()
+
+		doc.create_journal_entry()
+
+		je_dict = mock_frappe.get_doc.call_args[0][0]
+		accounts = je_dict["accounts"]
+		# 2 expense debits + 1 tax debit + 1 credit = 4 lines
+		assert len(accounts) == 4
+		# Expense lines should be ~500 each (575 - 75 tax share), not 575
+		expense_total = accounts[0]["debit_in_account_currency"] + accounts[1]["debit_in_account_currency"]
+		assert expense_total == 1000.00  # subtotal, not total_amount
+		# Tax line
+		assert accounts[2]["debit_in_account_currency"] == 150.00
+		# Credit line should equal total_amount (1150), not 1300
+		assert accounts[3]["credit_in_account_currency"] == 1150.00
+		# Total debits == total credits
+		total_debit = sum(a["debit_in_account_currency"] for a in accounts)
+		total_credit = sum(a["credit_in_account_currency"] for a in accounts)
+		assert total_debit == total_credit
+
 	def test_je_requires_expense_accounts(self, mock_frappe, sample_settings):
 		sample_settings.default_expense_account = None
 		doc = _make_ocr_import(

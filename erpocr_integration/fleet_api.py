@@ -114,7 +114,10 @@ def _populate_ocr_fleet(ocr_fleet, extracted_data: dict, settings):
 	ocr_fleet.vehicle_registration = header.get("vehicle_registration", "")
 
 	# Confidence: convert 0.0-1.0 to 0-100 percent
-	raw_confidence = header.get("confidence", 0) or 0
+	try:
+		raw_confidence = float(header.get("confidence") or 0.0)
+	except (ValueError, TypeError):
+		raw_confidence = 0.0
 	ocr_fleet.confidence = max(0.0, min(100.0, raw_confidence * 100))
 
 	# Fuel details
@@ -312,6 +315,10 @@ def retry_fleet_extraction(ocr_fleet_name: str):
 
 	if not file_content:
 		frappe.throw(_("No file found to retry extraction. Upload a new file or check Drive access."))
+
+	# Set status to Pending before enqueue to prevent duplicate retries
+	frappe.db.set_value("OCR Fleet Slip", ocr_fleet_name, "status", "Pending")
+	frappe.db.commit()  # nosemgrep
 
 	frappe.enqueue(
 		"erpocr_integration.fleet_api.fleet_gemini_process",
