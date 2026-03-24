@@ -214,8 +214,9 @@ def _get_or_create_folder(service, folder_name: str, parent_folder_id: str) -> s
 	Returns:
 		str: Folder ID
 	"""
-	# Search for existing folder
-	query = f"name='{folder_name}' and '{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+	# Search for existing folder (escape single quotes to prevent query injection from OCR-extracted names)
+	safe_name = folder_name.replace("\\", "\\\\").replace("'", "\\'")
+	query = f"name='{safe_name}' and '{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
 
 	try:
 		results = (

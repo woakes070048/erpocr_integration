@@ -34,15 +34,15 @@ def fleet_gemini_process(
 	"""
 	frappe.set_user("Administrator")
 
-	# Rate-limit stagger (capped at 240s)
-	if queue_position > 0:
-		stagger = min(queue_position * 5, 240)
-		time.sleep(stagger)
-
-	frappe.db.set_value("OCR Fleet Slip", ocr_fleet_name, "status", "Pending")
-	frappe.db.commit()  # nosemgrep
-
 	try:
+		# Rate-limit stagger (capped at 240s)
+		if queue_position > 0:
+			stagger = min(queue_position * 5, 240)
+			time.sleep(stagger)
+
+		frappe.db.set_value("OCR Fleet Slip", ocr_fleet_name, "status", "Pending")
+		frappe.db.commit()  # nosemgrep
+
 		from erpocr_integration.tasks.gemini_extract import extract_fleet_slip_data
 
 		extracted_data = extract_fleet_slip_data(file_content, filename, mime_type=mime_type)
