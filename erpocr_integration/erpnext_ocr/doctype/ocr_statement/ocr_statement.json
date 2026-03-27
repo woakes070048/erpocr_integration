@@ -1,0 +1,348 @@
+{
+	"actions": [],
+	"autoname": "naming_series:",
+	"creation": "2026-03-27 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"naming_series",
+		"status",
+		"source_filename",
+		"column_break_header",
+		"source_type",
+		"uploaded_by",
+		"company",
+		"section_break_classification",
+		"classification_confidence",
+		"section_break_drive",
+		"drive_file_id",
+		"drive_retry_count",
+		"drive_link",
+		"column_break_drive",
+		"drive_folder_path",
+		"section_break_supplier",
+		"supplier_name_ocr",
+		"supplier",
+		"column_break_supplier",
+		"supplier_match_status",
+		"section_break_period",
+		"statement_date",
+		"period_from",
+		"period_to",
+		"column_break_period",
+		"opening_balance",
+		"closing_balance",
+		"currency",
+		"section_break_recon_summary",
+		"total_lines",
+		"matched_count",
+		"mismatch_count",
+		"column_break_recon_summary",
+		"missing_count",
+		"not_in_statement_count",
+		"payment_count",
+		"reverse_check_skipped",
+		"section_break_items",
+		"items",
+		"section_break_status",
+		"error_log",
+		"section_break_raw",
+		"raw_payload"
+	],
+	"fields": [
+		{
+			"fieldname": "naming_series",
+			"fieldtype": "Select",
+			"hidden": 1,
+			"label": "Naming Series",
+			"options": "OCR-STMT-.#####",
+			"reqd": 1
+		},
+		{
+			"fieldname": "status",
+			"fieldtype": "Select",
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"label": "Status",
+			"options": "Pending\nExtracting\nReconciled\nReviewed\nError",
+			"read_only": 1
+		},
+		{
+			"fieldname": "source_filename",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Source File",
+			"read_only": 1
+		},
+		{
+			"fieldname": "column_break_header",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "source_type",
+			"fieldtype": "Select",
+			"label": "Source",
+			"options": "Gemini Drive Scan\nGemini Email\nGemini Manual Upload",
+			"read_only": 1
+		},
+		{
+			"fieldname": "uploaded_by",
+			"fieldtype": "Link",
+			"label": "Uploaded By",
+			"options": "User",
+			"read_only": 1
+		},
+		{
+			"fieldname": "company",
+			"fieldtype": "Link",
+			"label": "Company",
+			"options": "Company",
+			"reqd": 1
+		},
+		{
+			"fieldname": "section_break_classification",
+			"fieldtype": "Section Break",
+			"collapsible": 1,
+			"label": "Classification"
+		},
+		{
+			"fieldname": "classification_confidence",
+			"fieldtype": "Float",
+			"label": "Classification Confidence",
+			"read_only": 1,
+			"description": "Gemini classification confidence (0.0-1.0)"
+		},
+		{
+			"fieldname": "section_break_drive",
+			"fieldtype": "Section Break",
+			"collapsible": 1,
+			"label": "Google Drive"
+		},
+		{
+			"fieldname": "drive_file_id",
+			"fieldtype": "Data",
+			"label": "Drive File ID",
+			"read_only": 1
+		},
+		{
+			"fieldname": "drive_retry_count",
+			"fieldtype": "Int",
+			"default": "0",
+			"hidden": 1,
+			"label": "Retry Count"
+		},
+		{
+			"fieldname": "drive_link",
+			"fieldtype": "Data",
+			"label": "Drive Link",
+			"read_only": 1
+		},
+		{
+			"fieldname": "column_break_drive",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "drive_folder_path",
+			"fieldtype": "Data",
+			"label": "Archive Path",
+			"read_only": 1
+		},
+		{
+			"fieldname": "section_break_supplier",
+			"fieldtype": "Section Break",
+			"label": "Supplier"
+		},
+		{
+			"fieldname": "supplier_name_ocr",
+			"fieldtype": "Data",
+			"label": "Supplier (OCR)",
+			"read_only": 1
+		},
+		{
+			"fieldname": "supplier",
+			"fieldtype": "Link",
+			"in_list_view": 1,
+			"label": "Supplier",
+			"options": "Supplier"
+		},
+		{
+			"fieldname": "column_break_supplier",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "supplier_match_status",
+			"fieldtype": "Select",
+			"label": "Supplier Match",
+			"options": "\nAuto Matched\nSuggested\nUnmatched\nConfirmed",
+			"read_only": 1
+		},
+		{
+			"fieldname": "section_break_period",
+			"fieldtype": "Section Break",
+			"label": "Statement Period"
+		},
+		{
+			"fieldname": "statement_date",
+			"fieldtype": "Date",
+			"in_list_view": 1,
+			"label": "Statement Date"
+		},
+		{
+			"fieldname": "period_from",
+			"fieldtype": "Date",
+			"label": "Period From"
+		},
+		{
+			"fieldname": "period_to",
+			"fieldtype": "Date",
+			"label": "Period To"
+		},
+		{
+			"fieldname": "column_break_period",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "opening_balance",
+			"fieldtype": "Currency",
+			"label": "Opening Balance",
+			"read_only": 1
+		},
+		{
+			"fieldname": "closing_balance",
+			"fieldtype": "Currency",
+			"label": "Closing Balance",
+			"read_only": 1
+		},
+		{
+			"fieldname": "currency",
+			"fieldtype": "Link",
+			"label": "Currency",
+			"options": "Currency"
+		},
+		{
+			"fieldname": "section_break_recon_summary",
+			"fieldtype": "Section Break",
+			"label": "Reconciliation Summary"
+		},
+		{
+			"fieldname": "total_lines",
+			"fieldtype": "Int",
+			"label": "Total Lines",
+			"read_only": 1
+		},
+		{
+			"fieldname": "matched_count",
+			"fieldtype": "Int",
+			"label": "Matched",
+			"read_only": 1
+		},
+		{
+			"fieldname": "mismatch_count",
+			"fieldtype": "Int",
+			"label": "Mismatches",
+			"read_only": 1
+		},
+		{
+			"fieldname": "column_break_recon_summary",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "missing_count",
+			"fieldtype": "Int",
+			"label": "Missing from ERPNext",
+			"read_only": 1
+		},
+		{
+			"fieldname": "not_in_statement_count",
+			"fieldtype": "Int",
+			"label": "Not in Statement",
+			"read_only": 1
+		},
+		{
+			"fieldname": "payment_count",
+			"fieldtype": "Int",
+			"label": "Payments",
+			"read_only": 1
+		},
+		{
+			"fieldname": "reverse_check_skipped",
+			"fieldtype": "Check",
+			"label": "Reverse Check Skipped",
+			"read_only": 1,
+			"description": "Set when period_from or period_to is missing — reverse check not reliable"
+		},
+		{
+			"fieldname": "section_break_items",
+			"fieldtype": "Section Break",
+			"label": "Transaction Lines"
+		},
+		{
+			"fieldname": "items",
+			"fieldtype": "Table",
+			"label": "Items",
+			"options": "OCR Statement Item"
+		},
+		{
+			"fieldname": "section_break_status",
+			"fieldtype": "Section Break",
+			"label": "Processing"
+		},
+		{
+			"fieldname": "error_log",
+			"fieldtype": "Link",
+			"label": "Error Log",
+			"options": "Error Log",
+			"read_only": 1
+		},
+		{
+			"fieldname": "section_break_raw",
+			"fieldtype": "Section Break",
+			"collapsible": 1,
+			"label": "Raw Data"
+		},
+		{
+			"fieldname": "raw_payload",
+			"fieldtype": "Code",
+			"label": "Raw Gemini Response",
+			"read_only": 1
+		}
+	],
+	"links": [],
+	"modified": "2026-03-27 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "ERPNext OCR",
+	"name": "OCR Statement",
+	"naming_rule": "By \"Naming Series\" field",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "OCR Manager",
+			"share": 1,
+			"write": 1
+		},
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1
+		}
+	],
+	"sort_field": "creation",
+	"sort_order": "DESC",
+	"states": [],
+	"title_field": "supplier_name_ocr",
+	"track_changes": 1
+}

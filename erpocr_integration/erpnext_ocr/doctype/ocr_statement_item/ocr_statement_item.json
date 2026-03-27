@@ -1,0 +1,118 @@
+{
+	"actions": [],
+	"autoname": "hash",
+	"creation": "2026-03-27 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"reference",
+		"transaction_date",
+		"description",
+		"column_break_1",
+		"debit",
+		"credit",
+		"balance",
+		"section_break_recon",
+		"recon_status",
+		"matched_invoice",
+		"column_break_recon",
+		"erp_amount",
+		"erp_outstanding",
+		"difference"
+	],
+	"fields": [
+		{
+			"fieldname": "reference",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Reference"
+		},
+		{
+			"fieldname": "transaction_date",
+			"fieldtype": "Date",
+			"in_list_view": 1,
+			"label": "Date"
+		},
+		{
+			"fieldname": "description",
+			"fieldtype": "Data",
+			"label": "Description"
+		},
+		{
+			"fieldname": "column_break_1",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "debit",
+			"fieldtype": "Currency",
+			"in_list_view": 1,
+			"label": "Debit"
+		},
+		{
+			"fieldname": "credit",
+			"fieldtype": "Currency",
+			"in_list_view": 1,
+			"label": "Credit"
+		},
+		{
+			"fieldname": "balance",
+			"fieldtype": "Currency",
+			"label": "Balance"
+		},
+		{
+			"fieldname": "section_break_recon",
+			"fieldtype": "Section Break",
+			"label": "Reconciliation"
+		},
+		{
+			"fieldname": "recon_status",
+			"fieldtype": "Select",
+			"in_list_view": 1,
+			"label": "Recon Status",
+			"options": "\nMatched\nAmount Mismatch\nMissing from ERPNext\nNot in Statement\nPayment\nUnreconciled",
+			"read_only": 1
+		},
+		{
+			"fieldname": "matched_invoice",
+			"fieldtype": "Link",
+			"label": "Matched Invoice",
+			"options": "Purchase Invoice",
+			"read_only": 1
+		},
+		{
+			"fieldname": "column_break_recon",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "erp_amount",
+			"fieldtype": "Currency",
+			"label": "ERPNext Amount",
+			"read_only": 1
+		},
+		{
+			"fieldname": "erp_outstanding",
+			"fieldtype": "Currency",
+			"label": "Outstanding",
+			"read_only": 1
+		},
+		{
+			"fieldname": "difference",
+			"fieldtype": "Currency",
+			"label": "Difference",
+			"read_only": 1
+		}
+	],
+	"istable": 1,
+	"links": [],
+	"modified": "2026-03-27 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "ERPNext OCR",
+	"name": "OCR Statement Item",
+	"naming_rule": "Random",
+	"owner": "Administrator",
+	"permissions": [],
+	"sort_field": "creation",
+	"sort_order": "ASC",
+	"states": [],
+	"track_changes": 0
+}
