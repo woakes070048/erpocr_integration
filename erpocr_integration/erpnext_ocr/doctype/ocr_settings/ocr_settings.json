@@ -196,6 +196,19 @@
 			"label": "Matching Threshold"
 		},
 		{
+			"fieldname": "auto_draft_section",
+			"fieldtype": "Section Break",
+			"label": "Auto-Draft",
+			"collapsible": 1
+		},
+		{
+			"fieldname": "enable_auto_draft",
+			"fieldtype": "Check",
+			"label": "Enable Auto-Draft",
+			"default": "0",
+			"description": "Automatically create PI/PR drafts when extraction produces high-confidence matches. Low-confidence records fall back to manual review."
+		},
+		{
 			"fieldname": "section_break_dn",
 			"fieldtype": "Section Break",
 			"label": "Delivery Note Scanning",
