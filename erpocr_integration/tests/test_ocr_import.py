@@ -540,6 +540,55 @@ class TestCreatePurchaseInvoiceWithPORefs:
 		assert "purchase_order" not in pi_item
 		assert "po_detail" not in pi_item
 
+	def test_pi_auto_matches_po_items_when_refs_missing(self, mock_frappe, sample_settings):
+		"""PO set at header but item-level purchase_order_item not set — auto-match by item_code."""
+		doc = _make_ocr_import(
+			document_type="Purchase Invoice",
+			purchase_order="PO-00001",
+			items=[_make_item(purchase_order_item=None)],  # No item-level ref
+		)
+		_setup_frappe_for_create(mock_frappe, sample_settings, "PI-00001")
+		# Mock get_all to return PO items for auto-matching
+		mock_frappe.get_all.return_value = [
+			SimpleNamespace(name="po-item-auto-1", item_code="ITEM-001"),
+		]
+
+		doc.create_purchase_invoice()
+
+		pi_dict = mock_frappe.get_doc.call_args[0][0]
+		pi_item = pi_dict["items"][0]
+		assert pi_item["purchase_order"] == "PO-00001"
+		assert pi_item["po_detail"] == "po-item-auto-1"
+
+	def test_pi_auto_matches_pr_items_when_refs_missing(self, mock_frappe, sample_settings):
+		"""PO+PR set at header but item-level refs not set — auto-match both."""
+		doc = _make_ocr_import(
+			document_type="Purchase Invoice",
+			purchase_order="PO-00001",
+			purchase_receipt_link="PR-00001",
+			items=[_make_item(purchase_order_item=None, pr_detail=None)],
+		)
+		mock_frappe.db.exists.return_value = True
+		_setup_frappe_for_create(mock_frappe, sample_settings, "PI-00001")
+
+		def get_all_handler(doctype, **kwargs):
+			if doctype == "Purchase Order Item":
+				return [SimpleNamespace(name="po-item-auto-1", item_code="ITEM-001")]
+			if doctype == "Purchase Receipt Item":
+				return [SimpleNamespace(name="pr-item-auto-1", item_code="ITEM-001")]
+			return []
+
+		mock_frappe.get_all.side_effect = get_all_handler
+
+		doc.create_purchase_invoice()
+
+		pi_dict = mock_frappe.get_doc.call_args[0][0]
+		pi_item = pi_dict["items"][0]
+		assert pi_item["purchase_order"] == "PO-00001"
+		assert pi_item["po_detail"] == "po-item-auto-1"
+		assert pi_item["purchase_receipt"] == "PR-00001"
+		assert pi_item["pr_detail"] == "pr-item-auto-1"
+
 
 # ---------------------------------------------------------------------------
 # Purchase Receipt with PO refs
@@ -568,6 +617,31 @@ class TestCreatePurchaseReceiptWithPORefs:
 		pr_item = pr_dict["items"][0]
 		assert pr_item["purchase_order"] == "PO-00001"
 		assert pr_item["purchase_order_item"] == "po-item-row-1"
+
+	def test_pr_auto_matches_po_items_when_refs_missing(self, mock_frappe, sample_settings):
+		"""PO set at header but item-level purchase_order_item not set — auto-match by item_code."""
+		doc = _make_ocr_import(
+			document_type="Purchase Receipt",
+			purchase_order="PO-00001",
+			status="Matched",
+			items=[_make_item(purchase_order_item=None)],
+		)
+		mock_frappe.db.get_value.side_effect = _db_get_value_handler(item_is_stock=1)
+		mock_frappe.get_cached_doc.return_value = sample_settings
+		created_pr = MagicMock()
+		created_pr.name = "PR-00001"
+		mock_frappe.get_doc.return_value = created_pr
+		mock_frappe.msgprint = MagicMock()
+		mock_frappe.get_all.return_value = [
+			SimpleNamespace(name="po-item-auto-1", item_code="ITEM-001"),
+		]
+
+		doc.create_purchase_receipt()
+
+		pr_dict = mock_frappe.get_doc.call_args[0][0]
+		pr_item = pr_dict["items"][0]
+		assert pr_item["purchase_order"] == "PO-00001"
+		assert pr_item["purchase_order_item"] == "po-item-auto-1"
 
 
 # ---------------------------------------------------------------------------

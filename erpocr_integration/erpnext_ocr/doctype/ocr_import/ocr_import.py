@@ -349,6 +349,31 @@ class OCRImport(Document):
 					)
 				)
 
+		# Build PO/PR item lookup maps for auto-matching when item-level refs are missing
+		# (user selected PO/PR at header but didn't run "Match PO Items" dialog)
+		po_items_by_code = {}
+		if self.purchase_order:
+			for po_item in frappe.get_all(
+				"Purchase Order Item",
+				filters={"parent": self.purchase_order},
+				fields=["name", "item_code"],
+				order_by="idx",
+			):
+				po_items_by_code.setdefault(po_item.item_code, []).append(po_item.name)
+
+		pr_items_by_code = {}
+		if self.purchase_receipt_link and self.purchase_order:
+			for pr_item in frappe.get_all(
+				"Purchase Receipt Item",
+				filters={
+					"parent": self.purchase_receipt_link,
+					"purchase_order": self.purchase_order,
+				},
+				fields=["name", "item_code"],
+				order_by="idx",
+			):
+				pr_items_by_code.setdefault(pr_item.item_code, []).append(pr_item.name)
+
 		pi_items = []
 		for item in self.items:
 			pi_item = {
@@ -383,14 +408,28 @@ class OCRImport(Document):
 				pi_item["warehouse"] = settings.default_warehouse
 
 			# PO refs (links PI item back to PO item — marks PO as billed)
-			if self.purchase_order and item.purchase_order_item:
+			# Use saved item-level ref, or auto-match by item_code (FIFO) as fallback
+			po_detail = item.purchase_order_item
+			if not po_detail and self.purchase_order and item.item_code:
+				candidates = po_items_by_code.get(item.item_code, [])
+				if candidates:
+					po_detail = candidates.pop(0)
+
+			if self.purchase_order and po_detail:
 				pi_item["purchase_order"] = self.purchase_order
-				pi_item["po_detail"] = item.purchase_order_item
+				pi_item["po_detail"] = po_detail
 
 			# PR refs — only valid when a PO is also set (PR must be against the PO)
-			if self.purchase_receipt_link and self.purchase_order and item.pr_detail:
+			# Use saved item-level ref, or auto-match by item_code (FIFO) as fallback
+			pr_detail = item.pr_detail
+			if not pr_detail and self.purchase_receipt_link and self.purchase_order and item.item_code:
+				candidates = pr_items_by_code.get(item.item_code, [])
+				if candidates:
+					pr_detail = candidates.pop(0)
+
+			if self.purchase_receipt_link and self.purchase_order and pr_detail:
 				pi_item["purchase_receipt"] = self.purchase_receipt_link
-				pi_item["pr_detail"] = item.pr_detail
+				pi_item["pr_detail"] = pr_detail
 
 			pi_items.append(pi_item)
 
@@ -521,6 +560,17 @@ class OCRImport(Document):
 
 		settings = frappe.get_cached_doc("OCR Settings")
 
+		# Build PO item lookup for auto-matching when item-level refs are missing
+		po_items_by_code = {}
+		if self.purchase_order:
+			for po_item in frappe.get_all(
+				"Purchase Order Item",
+				filters={"parent": self.purchase_order},
+				fields=["name", "item_code"],
+				order_by="idx",
+			):
+				po_items_by_code.setdefault(po_item.item_code, []).append(po_item.name)
+
 		pr_items = []
 		non_stock_warnings = []
 		skipped_unmatched = 0
@@ -552,9 +602,16 @@ class OCRImport(Document):
 
 			# PO refs (links PR item back to PO item — marks PO as received)
 			# Note: PR uses field name `purchase_order_item`, not `po_detail` (ERPNext v15 schema)
-			if self.purchase_order and item.purchase_order_item:
+			# Use saved item-level ref, or auto-match by item_code (FIFO) as fallback
+			po_detail = item.purchase_order_item
+			if not po_detail and self.purchase_order and item.item_code:
+				candidates = po_items_by_code.get(item.item_code, [])
+				if candidates:
+					po_detail = candidates.pop(0)
+
+			if self.purchase_order and po_detail:
 				pr_item["purchase_order"] = self.purchase_order
-				pr_item["purchase_order_item"] = item.purchase_order_item
+				pr_item["purchase_order_item"] = po_detail
 
 			pr_items.append(pr_item)
 
