@@ -31,7 +31,7 @@ class TestPopulateOcrImport:
 
 		_populate_ocr_import(doc, sample_extracted_data, sample_settings, drive_result)
 
-		assert doc.supplier_name_ocr == "Star Pops (Pty) Ltd"
+		assert doc.supplier_name_ocr == "Acme Trading (Pty) Ltd"
 		assert doc.invoice_number == "INV-2024-0042"
 		assert doc.invoice_date == "2024-06-15"
 		assert doc.due_date == "2024-07-15"
@@ -102,14 +102,14 @@ class TestPopulateOcrImport:
 		drive_result = {
 			"file_id": "drive-123",
 			"shareable_link": "https://drive.google.com/file/d/drive-123",
-			"folder_path": "2024/June/Star Pops",
+			"folder_path": "2024/June/Acme Trading",
 		}
 
 		_populate_ocr_import(doc, sample_extracted_data, sample_settings, drive_result)
 
 		assert doc.drive_file_id == "drive-123"
 		assert doc.drive_link == "https://drive.google.com/file/d/drive-123"
-		assert doc.drive_folder_path == "2024/June/Star Pops"
+		assert doc.drive_folder_path == "2024/June/Acme Trading"
 
 	def test_no_drive_info(self, sample_extracted_data, sample_settings):
 		doc = self._make_ocr_import_mock()

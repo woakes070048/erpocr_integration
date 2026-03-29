@@ -154,7 +154,7 @@ class TestExtractPdfsFromEmail:
 
 class TestDecodeHeaderValue:
 	def test_plain_ascii(self):
-		assert _decode_header_value("Invoice from Star Pops") == "Invoice from Star Pops"
+		assert _decode_header_value("Invoice from Acme Trading") == "Invoice from Acme Trading"
 
 	def test_none_returns_empty(self):
 		assert _decode_header_value(None) == ""

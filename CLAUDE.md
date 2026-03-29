@@ -106,7 +106,8 @@ Pending → Needs Review → Matched → Draft Created → Completed / No Action
   - Fleet card provider set → **Fleet Card** mode → PI supplier = fleet card provider, expense = control account
   - Fleet card provider blank → **Direct Expense** mode → PI supplier = `fleet_default_supplier` from OCR Settings, expense = `fleet_expense_account`
 - **Supplier resolution**: fleet card provider (from vehicle) → `fleet_default_supplier` (from OCR Settings) → user fills manually
-- **Status readiness**: Matched requires data + vehicle + supplier (`fleet_card_supplier` field must be set)
+- **Status readiness**: Matched requires data + `fleet_vehicle` link (not just registration string) + supplier (`fleet_card_supplier` must be set)
+- **PI creation guard**: `create_purchase_invoice()` requires `fleet_vehicle` to be set (prevents unverified vehicle traceability)
 - **Merchant ≠ Supplier**: merchant name (Shell, Engen) is informational; PI supplier comes from vehicle config or default
 - **Item from slip_type**: Fuel → `fleet_fuel_item`, Toll → `fleet_toll_item` from OCR Settings (no item matching needed)
 - **Soft dependency on fleet_management**: vehicle matching only works if Fleet Vehicle DocType exists; graceful degradation otherwise
@@ -145,6 +146,7 @@ def process(raw_payload: str):
 - `flags.ignore_mandatory = True` on all created documents (drafts may have incomplete data)
 - Set `bill_date` from OCR invoice_date; only set `due_date` if >= posting_date
 - `default_item` in OCR Settings: used for unmatched PI items (non-stock item, OCR description set as item description)
+- **Tax template**: `_build_taxes_from_template()` shared helper handles template validation, company check, tax-inclusive detection, and taxes list building for both PI and PR creation
 
 ### Purchase Order / Purchase Receipt Linking
 - Optional: user can link OCR Import to an existing PO via "Find Open POs" button
@@ -152,6 +154,7 @@ def process(raw_payload: str):
 - If PO has existing PRs, system surfaces them for selection — PR field constrained to PRs against the selected PO only
 - PI items get both PO refs (`purchase_order` + `po_detail`) and PR refs (`purchase_receipt` + `pr_detail`) — closes full PO→PR→PI chain
 - PR items get PO refs (`purchase_order` + `purchase_order_item`) — different field names from PI (ERPNext v15 schema)
+- **PO item auto-match fallback**: if user selects PO but skips "Match PO Items" dialog, PI/PR/DN creation auto-matches by `item_code` (FIFO) — prevents orphaned PO linkage
 - Stale field clearing: changing supplier clears PO/PR; changing PO clears PR and all item-level refs
 
 ### Journal Entry Creation
@@ -186,6 +189,8 @@ def process(raw_payload: str):
 - `frappe.db.commit()` required in enqueued jobs (with `# nosemgrep` comment)
 - Failures logged to Error Log, status set to "Error"
 - **Retry on error**: "Retry Extraction" button on all Error records — reads from Drive file or local attachment
+- **Retry clears stale links**: retry endpoints reset supplier/vehicle/item links and child tables before re-extraction (prevents stale data from previous failed runs persisting)
+- **Email attachments saved**: email monitor saves PDF/image as Frappe File attachment on the OCR Import, enabling retry even after the email is deleted
 
 ### Matching System
 Matching runs in priority order for both suppliers and items:

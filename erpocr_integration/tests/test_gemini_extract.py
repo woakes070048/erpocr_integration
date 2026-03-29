@@ -177,7 +177,7 @@ class TestTransformToOcrImportFormat:
 
 	def test_cleans_ocr_artifacts(self):
 		gemini_data = {
-			"supplier_name": "Star Pops ( Pty ) Ltd",
+			"supplier_name": "Acme Trading ( Pty ) Ltd",
 			"supplier_tax_id": "",
 			"invoice_number": "INV-\n002",
 			"invoice_date": "2024-06-15",
@@ -191,7 +191,7 @@ class TestTransformToOcrImportFormat:
 		}
 		result = _transform_to_ocr_import_format(gemini_data, "test.pdf")
 
-		assert result["header_fields"]["supplier_name"] == "Star Pops (Pty) Ltd"
+		assert result["header_fields"]["supplier_name"] == "Acme Trading (Pty) Ltd"
 		assert result["header_fields"]["invoice_number"] == "INV-002"
 
 	def test_empty_fields_handled(self):

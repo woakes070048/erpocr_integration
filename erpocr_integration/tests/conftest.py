@@ -161,7 +161,7 @@ def sample_gemini_api_response():
 	invoice_json = {
 		"invoices": [
 			{
-				"supplier_name": "Star Pops ( Pty ) Ltd",
+				"supplier_name": "Acme Trading ( Pty ) Ltd",
 				"supplier_tax_id": "4123456789",
 				"invoice_number": "INV-2024-0042",
 				"invoice_date": "2024-06-15",
@@ -250,7 +250,7 @@ def sample_extracted_data():
 	"""Transformed data in OCR Import format (output of _transform_to_ocr_import_format)."""
 	return {
 		"header_fields": {
-			"supplier_name": "Star Pops (Pty) Ltd",
+			"supplier_name": "Acme Trading (Pty) Ltd",
 			"supplier_tax_id": "4123456789",
 			"invoice_number": "INV-2024-0042",
 			"invoice_date": "2024-06-15",
@@ -287,10 +287,10 @@ def sample_extracted_data():
 def sample_email_with_pdf():
 	"""Construct a MIME email message with a PDF attachment."""
 	msg = MIMEMultipart()
-	msg["Subject"] = "Invoice from Star Pops"
-	msg["From"] = "billing@starpops.co.za"
+	msg["Subject"] = "Invoice from Acme Trading"
+	msg["From"] = "billing@acmetrading.example.com"
 	msg["To"] = "invoices@example.com"
-	msg["Message-ID"] = "<test-001@starpops.co.za>"
+	msg["Message-ID"] = "<test-001@acmetrading.example.com>"
 
 	# Text body
 	msg.attach(MIMEText("Please find invoice attached.", "plain"))

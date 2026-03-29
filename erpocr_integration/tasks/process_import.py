@@ -19,7 +19,7 @@ def _clean_ocr_text(value: str) -> str:
 	# Collapse multiple spaces into one
 	value = re.sub(r"\s+", " ", value)
 	# Remove spaces after opening and before closing brackets/parens
-	# e.g. "( Pty )" → "(Pty)", "Star Pops ( Pty ) Ltd" → "Star Pops (Pty) Ltd"
+	# e.g. "( Pty )" → "(Pty)", "Acme Trading ( Pty ) Ltd" → "Acme Trading (Pty) Ltd"
 	value = re.sub(r"\(\s+", "(", value)
 	value = re.sub(r"\s+\)", ")", value)
 	value = re.sub(r"\[\s+", "[", value)

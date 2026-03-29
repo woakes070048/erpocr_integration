@@ -46,7 +46,7 @@ bench restart
 | Field | What to Enter |
 |---|---|
 | **Default Company** | Your company |
-| **Default Warehouse** | Main receiving warehouse (e.g. "Stores - SP") |
+| **Default Warehouse** | Main receiving warehouse (e.g. "Main Warehouse - TC") |
 | **Default Expense Account** | General expense account for service items |
 | **Default Cost Center** | Main cost center |
 | **Default Item** | A non-stock item for unmatched line items (optional — OCR description becomes the item description) |

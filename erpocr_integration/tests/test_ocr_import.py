@@ -1034,8 +1034,8 @@ class TestExtractServicePattern:
 
 	def test_no_dates_unchanged(self):
 		"""Descriptions without dates/months pass through (lowered, punctuation normalized)."""
-		result = _extract_service_pattern("CACTUSCRAFT CC - CHEMICALS")
-		assert result == "cactuscraft cc chemicals"
+		result = _extract_service_pattern("GREENLEAF CC - CHEMICALS")
+		assert result == "greenleaf cc chemicals"
 
 	def test_preserves_product_description(self):
 		"""Product descriptions without temporal info are preserved (punctuation normalized)."""

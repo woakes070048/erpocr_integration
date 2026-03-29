@@ -31,7 +31,7 @@ class TestCleanOcrText:
 		assert _clean_ocr_text("too   many    spaces") == "too many spaces"
 
 	def test_bracket_spacing_parens(self):
-		assert _clean_ocr_text("Star Pops ( Pty ) Ltd") == "Star Pops (Pty) Ltd"
+		assert _clean_ocr_text("Acme Trading ( Pty ) Ltd") == "Acme Trading (Pty) Ltd"
 
 	def test_bracket_spacing_square(self):
 		assert _clean_ocr_text("[ item ]") == "[item]"

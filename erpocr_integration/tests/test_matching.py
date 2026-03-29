@@ -31,7 +31,7 @@ class TestMatchSupplier:
 		)
 		from erpocr_integration.tasks.matching import match_supplier
 
-		result, status = match_supplier("Star Pops (Pty) Ltd")
+		result, status = match_supplier("Acme Trading (Pty) Ltd")
 		assert result == "SUP-001"
 		assert status == "Auto Matched"
 
@@ -39,13 +39,13 @@ class TestMatchSupplier:
 		# No alias, but supplier_name matches
 		mock_frappe.db.get_value = MagicMock(
 			side_effect=lambda doctype, filters, field: (
-				None if doctype == "OCR Supplier Alias" else "Star Pops (Pty) Ltd"
+				None if doctype == "OCR Supplier Alias" else "Acme Trading (Pty) Ltd"
 			)
 		)
 		from erpocr_integration.tasks.matching import match_supplier
 
-		result, status = match_supplier("Star Pops (Pty) Ltd")
-		assert result == "Star Pops (Pty) Ltd"
+		result, status = match_supplier("Acme Trading (Pty) Ltd")
+		assert result == "Acme Trading (Pty) Ltd"
 		assert status == "Auto Matched"
 
 	def test_supplier_doc_exists(self, mock_frappe):
@@ -145,13 +145,13 @@ class TestMatchSupplierFuzzy:
 		self._setup_suppliers(
 			mock_frappe,
 			[
-				("SUP-001", "Star Pops (Pty) Ltd"),
+				("SUP-001", "Acme Trading (Pty) Ltd"),
 			],
 		)
 		from erpocr_integration.tasks.matching import match_supplier_fuzzy
 
 		# Very similar — should match
-		result, status, score = match_supplier_fuzzy("Star Pops (Pty) Limited")
+		result, status, score = match_supplier_fuzzy("Acme Trading (Pty) Limited")
 		assert result == "SUP-001"
 		assert status == "Suggested"
 		assert score >= 80
@@ -160,7 +160,7 @@ class TestMatchSupplierFuzzy:
 		self._setup_suppliers(
 			mock_frappe,
 			[
-				("SUP-001", "Star Pops (Pty) Ltd"),
+				("SUP-001", "Acme Trading (Pty) Ltd"),
 			],
 		)
 		from erpocr_integration.tasks.matching import match_supplier_fuzzy
@@ -174,24 +174,24 @@ class TestMatchSupplierFuzzy:
 		self._setup_suppliers(
 			mock_frappe,
 			[
-				("SUP-001", "Star Pops (Pty) Ltd"),
+				("SUP-001", "Acme Trading (Pty) Ltd"),
 				("SUP-002", "Star Products (Pty) Ltd"),
 			],
 		)
 		from erpocr_integration.tasks.matching import match_supplier_fuzzy
 
-		result, _status, _score = match_supplier_fuzzy("Star Pops Pty Ltd")
+		result, _status, _score = match_supplier_fuzzy("Acme Trading Pty Ltd")
 		assert result == "SUP-001"  # Closer match
 
 	def test_alias_fuzzy_match(self, mock_frappe):
 		self._setup_suppliers(
 			mock_frappe,
 			suppliers=[("SUP-001", "Official Name")],
-			aliases=[("StarPops", "SUP-001")],
+			aliases=[("AcmeTrading", "SUP-001")],
 		)
 		from erpocr_integration.tasks.matching import match_supplier_fuzzy
 
-		result, _status, _score = match_supplier_fuzzy("Star Pops", threshold=50)
+		result, _status, _score = match_supplier_fuzzy("Acme Trading", threshold=50)
 		# Should match via alias fuzzy if score is high enough
 		assert result is not None
 
@@ -317,7 +317,7 @@ class TestMatchServiceItem:
 				{
 					"description_pattern": "delivery",
 					"item_code": "DEL-STAR",
-					"item_name": "Star Pops Delivery",
+					"item_name": "Acme Trading Delivery",
 					"expense_account": "5200 - Delivery - TC",
 					"cost_center": "",
 				}
