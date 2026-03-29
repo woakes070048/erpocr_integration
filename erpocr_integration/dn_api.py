@@ -166,8 +166,10 @@ def _run_dn_matching(ocr_dn, settings):
 				ocr_dn.supplier = fuzzy_supplier
 				ocr_dn.supplier_match_status = fuzzy_status
 			else:
+				ocr_dn.supplier = ""
 				ocr_dn.supplier_match_status = "Unmatched"
 	else:
+		ocr_dn.supplier = ""
 		ocr_dn.supplier_match_status = "Unmatched"
 
 	# Item matching for each line
@@ -296,8 +298,17 @@ def retry_dn_extraction(ocr_dn: str):
 	file_ext = "." + source_filename.rsplit(".", 1)[-1].lower() if "." in source_filename else ""
 	file_mime_type = SUPPORTED_FILE_TYPES.get(file_ext, "application/pdf")
 
-	# Reset status
-	ocr_dn_doc.db_set("status", "Pending")
+	# Reset status and clear stale links from previous run
+	ocr_dn_doc.db_set(
+		{
+			"status": "Pending",
+			"supplier": "",
+			"supplier_match_status": "",
+			"purchase_order": "",
+			"document_type": "",
+		}
+	)
+	frappe.db.delete("OCR Delivery Note Item", {"parent": ocr_dn_doc.name})
 	frappe.db.commit()  # nosemgrep
 
 	try:

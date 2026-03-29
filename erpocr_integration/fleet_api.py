@@ -208,7 +208,12 @@ def _match_vehicle(ocr_fleet, settings):
 			_apply_vehicle_config(ocr_fleet, v, settings)
 			return
 
+	ocr_fleet.fleet_vehicle = ""
 	ocr_fleet.vehicle_match_status = "Unmatched"
+	ocr_fleet.fleet_card_supplier = ""
+	ocr_fleet.posting_mode = ""
+	ocr_fleet.expense_account = ""
+	ocr_fleet.cost_center = ""
 
 
 def _apply_vehicle_config(ocr_fleet, vehicle, settings):
@@ -316,8 +321,21 @@ def retry_fleet_extraction(ocr_fleet_name: str):
 	if not file_content:
 		frappe.throw(_("No file found to retry extraction. Upload a new file or check Drive access."))
 
-	# Set status to Pending before enqueue to prevent duplicate retries
-	frappe.db.set_value("OCR Fleet Slip", ocr_fleet_name, "status", "Pending")
+	# Reset status and clear stale links from previous run
+	frappe.db.set_value(
+		"OCR Fleet Slip",
+		ocr_fleet_name,
+		{
+			"status": "Pending",
+			"fleet_vehicle": "",
+			"vehicle_match_status": "",
+			"fleet_card_supplier": "",
+			"posting_mode": "",
+			"expense_account": "",
+			"cost_center": "",
+			"document_type": "",
+		},
+	)
 	frappe.db.commit()  # nosemgrep
 
 	try:

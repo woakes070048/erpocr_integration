@@ -363,7 +363,7 @@ class TestMatchVehicle:
 		doc = MockFleetSlip(vehicle_registration="ABC 123 GP")
 		_match_vehicle(doc, settings)
 
-		assert doc.fleet_vehicle is None
+		assert doc.fleet_vehicle == ""
 		assert doc.vehicle_match_status == "Unmatched"
 
 	def test_empty_registration(self, mock_frappe):

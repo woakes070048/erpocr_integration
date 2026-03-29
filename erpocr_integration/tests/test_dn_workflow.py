@@ -135,7 +135,7 @@ class TestDnExtractionToMatching:
 		_populate_ocr_dn(doc, sample_dn_extracted_data, settings)
 		_run_dn_matching(doc, settings)
 
-		assert doc.supplier is None
+		assert doc.supplier == ""
 		assert doc.supplier_match_status == "Unmatched"
 		assert all(item.match_status == "Unmatched" for item in doc.items)
 

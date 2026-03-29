@@ -208,6 +208,18 @@ class OCRDeliveryNote(Document):
 
 		settings = frappe.get_cached_doc("OCR Settings")
 
+		# Build PO item lookup for auto-matching when item-level refs are missing
+		# (user selected PO but skipped "Match PO Items" dialog)
+		po_items_by_code = {}
+		if self.purchase_order:
+			for po_item in frappe.get_all(
+				"Purchase Order Item",
+				filters={"parent": self.purchase_order},
+				fields=["name", "item_code"],
+				order_by="idx",
+			):
+				po_items_by_code.setdefault(po_item.item_code, []).append(po_item.name)
+
 		pr_items = []
 		skipped_unmatched = 0
 		non_stock_warnings = []
@@ -216,7 +228,14 @@ class OCRDeliveryNote(Document):
 				skipped_unmatched += 1
 				continue
 
-			rate = _resolve_rate(item.item_code, item.purchase_order_item)
+			# Use saved item-level ref, or auto-match by item_code (FIFO) as fallback
+			po_detail = item.purchase_order_item
+			if not po_detail and self.purchase_order and item.item_code:
+				candidates = po_items_by_code.get(item.item_code, [])
+				if candidates:
+					po_detail = candidates.pop(0)
+
+			rate = _resolve_rate(item.item_code, po_detail)
 
 			pr_item = {
 				"item_code": item.item_code,
@@ -234,9 +253,9 @@ class OCRDeliveryNote(Document):
 				pr_item["warehouse"] = warehouse
 
 			# PO refs
-			if self.purchase_order and item.purchase_order_item:
+			if self.purchase_order and po_detail:
 				pr_item["purchase_order"] = self.purchase_order
-				pr_item["purchase_order_item"] = item.purchase_order_item
+				pr_item["purchase_order_item"] = po_detail
 
 			pr_items.append(pr_item)
 

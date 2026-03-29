@@ -337,6 +337,19 @@ def _process_email(mail, email_id, email_account, settings, use_uid=False):
 					}
 				)
 				ocr_import.insert(ignore_permissions=True)
+
+				# Save file as private attachment for retry capability
+				frappe.get_doc(
+					{
+						"doctype": "File",
+						"file_name": filename,
+						"attached_to_doctype": "OCR Import",
+						"attached_to_name": ocr_import.name,
+						"content": pdf_content,
+						"is_private": 1,
+					}
+				).insert(ignore_permissions=True)
+
 				frappe.db.commit()  # nosemgrep
 
 				# Enqueue Gemini processing with stagger to avoid rate-limit stampede.

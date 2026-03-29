@@ -152,7 +152,7 @@ class TestUpdateStatus:
 		assert doc.status == "Error"
 
 	def test_matched_with_registration_only(self):
-		"""Vehicle registration (without fleet_vehicle) counts as vehicle matched."""
+		"""Vehicle registration without fleet_vehicle link is NOT matched — needs review."""
 		doc = _make_fleet_slip(
 			status="Pending",
 			merchant_name_ocr="Shell",
@@ -161,15 +161,16 @@ class TestUpdateStatus:
 			fleet_card_supplier="Default Supplier",
 		)
 		doc._update_status()
-		assert doc.status == "Matched"
+		assert doc.status == "Needs Review"
 
 	def test_matched_from_total_amount(self):
-		"""total_amount alone counts as has_data."""
+		"""total_amount alone counts as has_data; fleet_vehicle required for Matched."""
 		doc = _make_fleet_slip(
 			status="Pending",
 			merchant_name_ocr="",
 			slip_type="",
 			total_amount=100,
+			fleet_vehicle="VH-001",
 			vehicle_registration="ABC",
 			fleet_card_supplier="WesBank",
 		)

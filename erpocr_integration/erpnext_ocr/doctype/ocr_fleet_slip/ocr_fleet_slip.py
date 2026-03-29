@@ -23,7 +23,7 @@ class OCRFleetSlip(Document):
 
 		# Check readiness for document creation
 		has_data = bool(self.merchant_name_ocr or self.total_amount or self.slip_type)
-		vehicle_matched = bool(self.fleet_vehicle) or bool(self.vehicle_registration)
+		vehicle_matched = bool(self.fleet_vehicle)
 		has_supplier = bool(self.fleet_card_supplier)
 
 		if has_data and vehicle_matched and has_supplier:
@@ -96,6 +96,9 @@ class OCRFleetSlip(Document):
 		)
 		if current.purchase_invoice:
 			frappe.throw(_("A document has already been created for this fleet slip."))
+
+		if not self.fleet_vehicle:
+			frappe.throw(_("No Fleet Vehicle linked. Match a vehicle before creating a Purchase Invoice."))
 
 		supplier = self.fleet_card_supplier
 		if not supplier:

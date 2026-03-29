@@ -411,7 +411,7 @@ class TestUnmatchedVehicleWorkflow:
 
 		assert doc.vehicle_match_status == "Unmatched"
 		assert doc.posting_mode == ""
-		assert doc.fleet_vehicle is None
+		assert doc.fleet_vehicle == ""
 
 	def test_no_fleet_management_installed(self, mock_frappe):
 		"""Without fleet_management app, no vehicle matching occurs."""

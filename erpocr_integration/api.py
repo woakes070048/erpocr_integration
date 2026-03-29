@@ -478,8 +478,10 @@ def _run_matching(ocr_import, header_fields: dict, settings):
 				ocr_import.supplier = fuzzy_supplier
 				ocr_import.supplier_match_status = fuzzy_status  # "Suggested"
 			else:
+				ocr_import.supplier = ""
 				ocr_import.supplier_match_status = "Unmatched"
 	else:
+		ocr_import.supplier = ""
 		ocr_import.supplier_match_status = "Unmatched"
 
 	# Item matching for each line
@@ -596,8 +598,19 @@ def retry_gemini_extraction(ocr_import: str):
 	file_ext = ("." + source_filename.rsplit(".", 1)[-1].lower()) if "." in source_filename else ""
 	file_mime_type = SUPPORTED_FILE_TYPES.get(file_ext, "application/pdf")
 
-	# Reset status and clear old data
-	ocr_import_doc.db_set("status", "Pending")
+	# Reset status and clear stale links from previous run so re-extraction
+	# starts clean (prevents stale supplier/item matches from persisting).
+	ocr_import_doc.db_set(
+		{
+			"status": "Pending",
+			"supplier": "",
+			"supplier_match_status": "",
+			"purchase_order": "",
+			"purchase_receipt_link": "",
+			"document_type": "",
+		}
+	)
+	frappe.db.delete("OCR Import Item", {"parent": ocr_import_doc.name})
 	frappe.db.commit()
 
 	# Re-enqueue extraction (single file — no stagger needed)

@@ -57,8 +57,12 @@ class MockOCRDN:
 	def save(self, **kw):
 		pass
 
-	def db_set(self, key, value):
-		setattr(self, key, value)
+	def db_set(self, key, value=None):
+		if isinstance(key, dict):
+			for k, v in key.items():
+				setattr(self, k, v)
+		else:
+			setattr(self, key, value)
 
 	def reload(self):
 		pass
@@ -239,7 +243,7 @@ class TestRunDnMatching:
 		]
 		_run_dn_matching(doc, sample_settings)
 
-		assert doc.supplier is None
+		assert doc.supplier == ""
 		assert doc.supplier_match_status == "Unmatched"
 		assert doc.items[0].item_code is None
 		assert doc.items[0].match_status == "Unmatched"
