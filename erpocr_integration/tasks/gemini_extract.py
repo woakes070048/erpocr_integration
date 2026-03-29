@@ -954,13 +954,34 @@ def extract_statement_data(pdf_content: bytes, filename: str, mime_type: str = "
 
 	is_valid, error_msg = _validate_gemini_response(response_data)
 	if not is_valid:
+		truncated = json.dumps(response_data, indent=2)[:500]
+		frappe.log_error(
+			title="Invalid Gemini Response (Statement)",
+			message=f"Invalid Gemini response for statement {filename}\n{error_msg}\n{truncated}...",
+		)
 		raise Exception(f"Invalid Gemini response: {error_msg}")
 
 	try:
 		candidates = response_data.get("candidates", [])
-		text = candidates[0]["content"]["parts"][0]["text"]
+		if not candidates:
+			raise Exception("No candidates in Gemini response")
+
+		content = candidates[0].get("content", {})
+		parts = content.get("parts", [])
+		if not parts:
+			raise Exception("No parts in Gemini response")
+
+		text = parts[0].get("text", "")
+		if not text:
+			raise Exception("Empty text in Gemini response")
+
 		extracted = json.loads(text)
 	except Exception as e:
+		truncated = json.dumps(response_data, indent=2)[:500]
+		frappe.log_error(
+			title="Gemini Parse Error (Statement)",
+			message=f"Failed to parse Gemini statement response for {filename}\n{frappe.get_traceback()}\n{truncated}...",
+		)
 		raise Exception(f"Failed to parse Gemini response: {e!s}") from e
 
 	transactions = extracted.get("transactions", [])

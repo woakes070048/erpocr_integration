@@ -645,6 +645,147 @@ class TestCreatePurchaseReceiptWithPORefs:
 
 
 # ---------------------------------------------------------------------------
+# Tax template application via _build_taxes_from_template
+# ---------------------------------------------------------------------------
+
+
+class TestTaxTemplateOnPIAndPR:
+	def _make_tax_template(self):
+		"""Create a mock tax template with one tax row."""
+		tax_row = SimpleNamespace(
+			category="Total",
+			add_deduct_tax="Add",
+			charge_type="On Net Total",
+			row_id=None,
+			account_head="2200 - VAT Input - TC",
+			description="VAT 15%",
+			rate=15.0,
+			cost_center="Main - TC",
+			account_currency="ZAR",
+			included_in_print_rate=0,
+			included_in_paid_amount=0,
+		)
+		template = SimpleNamespace(company="Test Company", taxes=[tax_row])
+		return template
+
+	def test_pi_applies_tax_template(self, mock_frappe, sample_settings):
+		"""PI creation applies tax template via shared helper."""
+		doc = _make_ocr_import(
+			document_type="Purchase Invoice",
+			tax_template="SA VAT 15%",
+			tax_amount=150.00,
+			subtotal=1000.00,
+			total_amount=1150.00,
+			items=[_make_item(rate=1000, qty=1, amount=1000)],
+		)
+		template = self._make_tax_template()
+
+		def get_cached_doc_handler(doctype, name=None):
+			if doctype == "OCR Settings":
+				return sample_settings
+			if doctype == "Purchase Taxes and Charges Template":
+				return template
+			return MagicMock()
+
+		mock_frappe.get_cached_doc.side_effect = get_cached_doc_handler
+		mock_frappe.db.get_value.side_effect = _db_get_value_handler()
+		created_pi = MagicMock()
+		created_pi.name = "PI-TAX-001"
+		mock_frappe.get_doc.return_value = created_pi
+		mock_frappe.msgprint = MagicMock()
+
+		doc.create_purchase_invoice()
+
+		pi_dict = mock_frappe.get_doc.call_args[0][0]
+		assert pi_dict["taxes_and_charges"] == "SA VAT 15%"
+		assert len(pi_dict["taxes"]) == 1
+		assert pi_dict["taxes"][0]["account_head"] == "2200 - VAT Input - TC"
+		assert pi_dict["taxes"][0]["rate"] == 15.0
+
+	def test_pr_applies_tax_template(self, mock_frappe, sample_settings):
+		"""PR creation applies tax template via shared helper."""
+		doc = _make_ocr_import(
+			document_type="Purchase Receipt",
+			status="Matched",
+			tax_template="SA VAT 15%",
+			tax_amount=150.00,
+			subtotal=1000.00,
+			total_amount=1150.00,
+			items=[_make_item(rate=1000, qty=1, amount=1000)],
+		)
+		template = self._make_tax_template()
+
+		def get_cached_doc_handler(doctype, name=None):
+			if doctype == "OCR Settings":
+				return sample_settings
+			if doctype == "Purchase Taxes and Charges Template":
+				return template
+			return MagicMock()
+
+		mock_frappe.get_cached_doc.side_effect = get_cached_doc_handler
+		mock_frappe.db.get_value.side_effect = _db_get_value_handler(item_is_stock=1)
+		created_pr = MagicMock()
+		created_pr.name = "PR-TAX-001"
+		mock_frappe.get_doc.return_value = created_pr
+		mock_frappe.msgprint = MagicMock()
+
+		doc.create_purchase_receipt()
+
+		pr_dict = mock_frappe.get_doc.call_args[0][0]
+		assert pr_dict["taxes_and_charges"] == "SA VAT 15%"
+		assert len(pr_dict["taxes"]) == 1
+		assert pr_dict["taxes"][0]["account_head"] == "2200 - VAT Input - TC"
+		assert pr_dict["taxes"][0]["rate"] == 15.0
+
+	def test_pi_no_tax_template_skips(self, mock_frappe, sample_settings):
+		"""PI without tax_template has no taxes in dict."""
+		doc = _make_ocr_import(
+			document_type="Purchase Invoice",
+			tax_template=None,
+			items=[_make_item()],
+		)
+		_setup_frappe_for_create(mock_frappe, sample_settings, "PI-NOTAX")
+
+		doc.create_purchase_invoice()
+
+		pi_dict = mock_frappe.get_doc.call_args[0][0]
+		assert "taxes_and_charges" not in pi_dict
+		assert "taxes" not in pi_dict
+
+	def test_tax_inclusive_rates_sets_flag(self, mock_frappe, sample_settings):
+		"""When rates include tax, included_in_print_rate is set to 1."""
+		doc = _make_ocr_import(
+			document_type="Purchase Invoice",
+			tax_template="SA VAT 15%",
+			tax_amount=150.00,
+			subtotal=1000.00,
+			total_amount=1150.00,
+			# Rates match total (inclusive), not subtotal
+			items=[_make_item(rate=1150, qty=1, amount=1150)],
+		)
+		template = self._make_tax_template()
+
+		def get_cached_doc_handler(doctype, name=None):
+			if doctype == "OCR Settings":
+				return sample_settings
+			if doctype == "Purchase Taxes and Charges Template":
+				return template
+			return MagicMock()
+
+		mock_frappe.get_cached_doc.side_effect = get_cached_doc_handler
+		mock_frappe.db.get_value.side_effect = _db_get_value_handler()
+		created_pi = MagicMock()
+		created_pi.name = "PI-INCL"
+		mock_frappe.get_doc.return_value = created_pi
+		mock_frappe.msgprint = MagicMock()
+
+		doc.create_purchase_invoice()
+
+		pi_dict = mock_frappe.get_doc.call_args[0][0]
+		assert pi_dict["taxes"][0]["included_in_print_rate"] == 1
+
+
+# ---------------------------------------------------------------------------
 # _update_status
 # ---------------------------------------------------------------------------
 

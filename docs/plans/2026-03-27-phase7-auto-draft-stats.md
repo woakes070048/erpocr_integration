@@ -1401,10 +1401,10 @@ After pushing v0.7.0:
 
 1. **Deploy to both sites**: `bench get-app --upgrade erpocr_integration` + `bench migrate` + `bench restart`
 2. **Run migrate** to create new fields (`auto_drafted`, `auto_draft_skipped_reason`, `enable_auto_draft`)
-3. **Enable on Star Pops first**: OCR Settings > Auto-Draft section > check "Enable Auto-Draft"
+3. **Enable on primary site first**: OCR Settings > Auto-Draft section > check "Enable Auto-Draft"
 4. **Monitor for 1 week**: Check stats page at `/app/ocr-stats` — watch touchless rate
-5. **Enable on Cactus Craft**: Only after Star Pops validates (Cactus needs alias learning first)
-6. **Expected touchless rate**: Star Pops ~50-70% (189 item aliases), Cactus ~10-20% initially
+5. **Enable on secondary site**: Only after primary validates (secondary needs alias learning first)
+6. **Expected touchless rate**: Primary ~50-70% (with mature aliases), Secondary ~10-20% initially
 
 ## Future Extensions (not in this plan)
 
@@ -1412,4 +1412,4 @@ After pushing v0.7.0:
 - DN auto-draft: auto-create PR when PO found + all items matched
 - Fleet auto-draft: auto-create PI when vehicle matched + supplier resolved
 - Monthly stats email to FM
-- Alias seeding: export Star Pops aliases to Cactus Craft for shared suppliers
+- Alias seeding: export primary site aliases to secondary for shared suppliers

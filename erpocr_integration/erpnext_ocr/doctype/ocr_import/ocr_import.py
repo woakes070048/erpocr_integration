@@ -152,6 +152,46 @@ def _detect_tax_inclusive_rates(ocr_import) -> bool:
 	return diff_to_total < diff_to_subtotal
 
 
+def _build_taxes_from_template(ocr_import) -> tuple[str, list[dict]] | tuple[None, None]:
+	"""Build taxes list from the tax template on the OCR Import.
+
+	Validates the template belongs to the same company, detects whether
+	OCR-extracted rates include tax, and returns the template name + taxes list
+	ready to assign to a PI/PR dict. Returns (None, None) if no template set.
+	"""
+	if not ocr_import.tax_template:
+		return None, None
+
+	template = frappe.get_cached_doc("Purchase Taxes and Charges Template", ocr_import.tax_template)
+	if template.company and template.company != ocr_import.company:
+		frappe.throw(
+			_("Tax Template '{0}' belongs to company '{1}', not '{2}'").format(
+				ocr_import.tax_template, template.company, ocr_import.company
+			)
+		)
+
+	rates_include_tax = _detect_tax_inclusive_rates(ocr_import)
+
+	taxes = [
+		{
+			"category": tax_row.category,
+			"add_deduct_tax": tax_row.add_deduct_tax,
+			"charge_type": tax_row.charge_type,
+			"row_id": tax_row.row_id,
+			"account_head": tax_row.account_head,
+			"description": tax_row.description,
+			"rate": tax_row.rate,
+			"cost_center": tax_row.cost_center,
+			"account_currency": tax_row.account_currency,
+			"included_in_print_rate": 1 if rates_include_tax else tax_row.included_in_print_rate,
+			"included_in_paid_amount": tax_row.included_in_paid_amount,
+		}
+		for tax_row in template.taxes
+	]
+
+	return ocr_import.tax_template, taxes
+
+
 class OCRImport(Document):
 	def before_save(self):
 		self._update_status()
@@ -454,40 +494,10 @@ class OCRImport(Document):
 			pi_dict["due_date"] = self.due_date
 
 		# Apply tax template from OCR Import (user-editable, auto-set during extraction)
-		if self.tax_template:
-			template = frappe.get_cached_doc("Purchase Taxes and Charges Template", self.tax_template)
-			# Validate template belongs to the same company
-			if template.company and template.company != self.company:
-				frappe.throw(
-					_("Tax Template '{0}' belongs to company '{1}', not '{2}'").format(
-						self.tax_template, template.company, self.company
-					)
-				)
-
-			# Detect if OCR-extracted rates already include tax.
-			# Compare sum(rate * qty) to subtotal vs total_amount to determine
-			# whether Gemini extracted VAT-inclusive or VAT-exclusive unit prices.
-			# This is country-agnostic — works with any tax system.
-			rates_include_tax = _detect_tax_inclusive_rates(self)
-
-			pi_dict["taxes_and_charges"] = self.tax_template
-			pi_dict["taxes"] = []
-			for tax_row in template.taxes:
-				pi_dict["taxes"].append(
-					{
-						"category": tax_row.category,
-						"add_deduct_tax": tax_row.add_deduct_tax,
-						"charge_type": tax_row.charge_type,
-						"row_id": tax_row.row_id,
-						"account_head": tax_row.account_head,
-						"description": tax_row.description,
-						"rate": tax_row.rate,
-						"cost_center": tax_row.cost_center,
-						"account_currency": tax_row.account_currency,
-						"included_in_print_rate": 1 if rates_include_tax else tax_row.included_in_print_rate,
-						"included_in_paid_amount": tax_row.included_in_paid_amount,
-					}
-				)
+		tax_template, taxes = _build_taxes_from_template(self)
+		if tax_template:
+			pi_dict["taxes_and_charges"] = tax_template
+			pi_dict["taxes"] = taxes
 
 		pi = frappe.get_doc(pi_dict)
 		# ignore_mandatory needed because OCR data may be incomplete (creating a draft for review)
@@ -634,35 +644,10 @@ class OCRImport(Document):
 		}
 
 		# Apply tax template from OCR Import
-		if self.tax_template:
-			template = frappe.get_cached_doc("Purchase Taxes and Charges Template", self.tax_template)
-			if template.company and template.company != self.company:
-				frappe.throw(
-					_("Tax Template '{0}' belongs to company '{1}', not '{2}'").format(
-						self.tax_template, template.company, self.company
-					)
-				)
-
-			rates_include_tax = _detect_tax_inclusive_rates(self)
-
-			pr_dict["taxes_and_charges"] = self.tax_template
-			pr_dict["taxes"] = []
-			for tax_row in template.taxes:
-				pr_dict["taxes"].append(
-					{
-						"category": tax_row.category,
-						"add_deduct_tax": tax_row.add_deduct_tax,
-						"charge_type": tax_row.charge_type,
-						"row_id": tax_row.row_id,
-						"account_head": tax_row.account_head,
-						"description": tax_row.description,
-						"rate": tax_row.rate,
-						"cost_center": tax_row.cost_center,
-						"account_currency": tax_row.account_currency,
-						"included_in_print_rate": 1 if rates_include_tax else tax_row.included_in_print_rate,
-						"included_in_paid_amount": tax_row.included_in_paid_amount,
-					}
-				)
+		tax_template, taxes = _build_taxes_from_template(self)
+		if tax_template:
+			pr_dict["taxes_and_charges"] = tax_template
+			pr_dict["taxes"] = taxes
 
 		pr = frappe.get_doc(pr_dict)
 		pr.flags.ignore_mandatory = True

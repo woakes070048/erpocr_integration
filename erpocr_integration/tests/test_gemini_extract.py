@@ -370,3 +370,61 @@ class TestExtractStatementData:
 
 			with pytest.raises(Exception, match="Failed to call Gemini API"):
 				extract_statement_data(b"fake-pdf", "timeout.pdf")
+
+	def test_raises_on_empty_candidates(self, mock_frappe):
+		"""Empty candidates list caught by validation, logged with truncated response."""
+		mock_settings = SimpleNamespace(gemini_model="gemini-2.5-flash")
+		mock_settings.get_password = MagicMock(return_value="fake-key")
+		mock_frappe.get_single.return_value = mock_settings
+
+		with patch("erpocr_integration.tasks.gemini_extract._call_gemini_api") as mock_api:
+			mock_api.return_value = {"candidates": []}
+
+			with pytest.raises(Exception, match="Invalid Gemini response"):
+				extract_statement_data(b"fake-pdf", "bad.pdf")
+
+		mock_frappe.log_error.assert_called()
+
+	def test_raises_on_missing_parts(self, mock_frappe):
+		"""Missing parts caught by validation, logged with truncated response."""
+		mock_settings = SimpleNamespace(gemini_model="gemini-2.5-flash")
+		mock_settings.get_password = MagicMock(return_value="fake-key")
+		mock_frappe.get_single.return_value = mock_settings
+
+		with patch("erpocr_integration.tasks.gemini_extract._call_gemini_api") as mock_api:
+			mock_api.return_value = {"candidates": [{"content": {"parts": []}}]}
+
+			with pytest.raises(Exception, match="Invalid Gemini response"):
+				extract_statement_data(b"fake-pdf", "bad.pdf")
+
+		mock_frappe.log_error.assert_called()
+
+	def test_raises_on_empty_text(self, mock_frappe):
+		"""Empty text caught by validation, logged with truncated response."""
+		mock_settings = SimpleNamespace(gemini_model="gemini-2.5-flash")
+		mock_settings.get_password = MagicMock(return_value="fake-key")
+		mock_frappe.get_single.return_value = mock_settings
+
+		with patch("erpocr_integration.tasks.gemini_extract._call_gemini_api") as mock_api:
+			mock_api.return_value = {"candidates": [{"content": {"parts": [{"text": ""}]}}]}
+
+			with pytest.raises(Exception, match="Invalid Gemini response"):
+				extract_statement_data(b"fake-pdf", "bad.pdf")
+
+		mock_frappe.log_error.assert_called()
+
+	def test_raises_on_invalid_response_with_logging(self, mock_frappe):
+		"""Invalid Gemini response (validation failure) logs truncated response."""
+		mock_settings = SimpleNamespace(gemini_model="gemini-2.5-flash")
+		mock_settings.get_password = MagicMock(return_value="fake-key")
+		mock_frappe.get_single.return_value = mock_settings
+
+		with patch("erpocr_integration.tasks.gemini_extract._call_gemini_api") as mock_api:
+			with patch("erpocr_integration.tasks.gemini_extract._validate_gemini_response") as mock_validate:
+				mock_api.return_value = {"bad": "response"}
+				mock_validate.return_value = (False, "Missing candidates field")
+
+				with pytest.raises(Exception, match="Invalid Gemini response"):
+					extract_statement_data(b"fake-pdf", "bad.pdf")
+
+		mock_frappe.log_error.assert_called()
