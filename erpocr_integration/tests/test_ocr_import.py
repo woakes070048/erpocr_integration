@@ -12,7 +12,6 @@ from erpocr_integration.erpnext_ocr.doctype.ocr_import.ocr_import import (
 	_resolve_ocr_description,
 )
 
-
 # ---------------------------------------------------------------------------
 # _resolve_ocr_description
 # ---------------------------------------------------------------------------
