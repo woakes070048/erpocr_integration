@@ -44,6 +44,26 @@ _STOP_WORDS = frozenset(
 )
 
 
+def _resolve_ocr_description(ocr_item) -> str:
+	"""Pick the description to restore onto a created PI/PR row.
+
+	Priority:
+	  1. `description_ocr` (OCR-extracted line text) if non-empty.
+	  2. `item_name` if it has been edited away from the raw product code
+	     (i.e. differs from the linked `item_code`). This preserves manual
+	     user edits made on the OCR Import grid before creating the document.
+	  3. Empty — caller should leave the Item master description untouched.
+	"""
+	desc = (getattr(ocr_item, "description_ocr", None) or "").strip()
+	if desc:
+		return desc
+	item_name = (getattr(ocr_item, "item_name", None) or "").strip()
+	item_code = (getattr(ocr_item, "item_code", None) or "").strip()
+	if item_name and item_name != item_code:
+		return item_name
+	return ""
+
+
 def _extract_service_pattern(description: str) -> str:
 	"""Extract a reusable matching pattern from an OCR description.
 
@@ -507,8 +527,11 @@ class OCRImport(Document):
 		# Restore OCR descriptions — ERPNext's set_missing_item_details() overwrites
 		# item_name/description from the Item master during insert(). We use db_set()
 		# to write directly to DB, bypassing save() which would re-trigger the overwrite.
+		# When description_ocr is empty we still honour a user-edited item_name; only
+		# a raw product code (item_name == item_code) is skipped so the Item master
+		# description wins in that case.
 		for pi_item, ocr_item in zip(pi.items, self.items, strict=False):
-			ocr_desc = ocr_item.description_ocr or ocr_item.item_name
+			ocr_desc = _resolve_ocr_description(ocr_item)
 			if ocr_desc and ocr_desc != pi_item.item_name:
 				pi_item.db_set({"item_name": ocr_desc[:140], "description": ocr_desc})
 
@@ -653,10 +676,11 @@ class OCRImport(Document):
 		pr.flags.ignore_mandatory = True
 		pr.insert()
 
-		# Restore OCR descriptions (same reason as PI — ERPNext overwrites from Item master)
+		# Restore OCR descriptions (same reason as PI — ERPNext overwrites from Item master).
+		# See _resolve_ocr_description() for the item_name vs product_code rule.
 		matched_items = [item for item in self.items if item.item_code]
 		for pr_item, ocr_item in zip(pr.items, matched_items, strict=False):
-			ocr_desc = ocr_item.description_ocr or ocr_item.item_name
+			ocr_desc = _resolve_ocr_description(ocr_item)
 			if ocr_desc and ocr_desc != pr_item.item_name:
 				pr_item.db_set({"item_name": ocr_desc[:140], "description": ocr_desc})
 

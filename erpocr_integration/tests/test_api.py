@@ -197,6 +197,73 @@ class TestCheckDuplicates:
 		assert len(result) == 1
 		assert result[0]["name"] == "OCR-IMP-00002"
 		assert result[0]["match_reason"] == "Same invoice number"
+		assert result[0]["doctype"] == "OCR Import"
+
+	def test_finds_duplicate_by_existing_pi(self, mock_frappe):
+		"""When supplier is matched and a PI already exists with same bill_no, flag it."""
+		doc = self._make_doc(supplier="Acme Corp ERPNext")
+		mock_frappe.get_cached_doc.return_value = doc
+
+		pi_record = {
+			"name": "PINV-00042",
+			"docstatus": 1,
+			"creation": "2026-02-15",
+			"bill_no": "INV-001",
+			"supplier": "Acme Corp ERPNext",
+		}
+		# Two OCR Import checks return nothing, PI check returns a hit
+		mock_frappe.get_list.side_effect = [[], [], [pi_record]]
+
+		result = check_duplicates("OCR-IMP-00001")
+
+		assert len(result) == 1
+		assert result[0]["name"] == "PINV-00042"
+		assert result[0]["doctype"] == "Purchase Invoice"
+		assert result[0]["match_reason"] == "Existing Purchase Invoice"
+		assert result[0]["status"] == "Submitted"
+		assert result[0]["invoice_number"] == "INV-001"
+
+	def test_skips_pi_check_when_supplier_unmatched(self, mock_frappe):
+		"""PI check requires a matched supplier to avoid cross-supplier false matches."""
+		doc = self._make_doc()  # no `supplier` attribute
+		mock_frappe.get_cached_doc.return_value = doc
+		mock_frappe.get_list.return_value = []
+
+		check_duplicates("OCR-IMP-00001")
+
+		# Only the two OCR Import checks should have run
+		assert mock_frappe.get_list.call_count == 2
+		called_doctypes = [call.args[0] for call in mock_frappe.get_list.call_args_list]
+		assert "Purchase Invoice" not in called_doctypes
+
+	def test_pi_check_scoped_to_company(self, mock_frappe):
+		"""PI query must filter by company to avoid cross-company false positives."""
+		doc = self._make_doc(supplier="Acme Corp ERPNext", company="Co A")
+		mock_frappe.get_cached_doc.return_value = doc
+		mock_frappe.get_list.return_value = []
+
+		check_duplicates("OCR-IMP-00001")
+
+		# Find the Purchase Invoice call and inspect its filters
+		pi_calls = [c for c in mock_frappe.get_list.call_args_list if c.args[0] == "Purchase Invoice"]
+		assert len(pi_calls) == 1
+		filters = pi_calls[0].kwargs["filters"]
+		assert filters.get("company") == "Co A"
+		assert filters.get("bill_no") == "INV-001"
+		assert filters.get("supplier") == "Acme Corp ERPNext"
+
+	def test_pi_check_excludes_own_linked_pi(self, mock_frappe):
+		"""The PI that was created from this OCR Import must not be flagged."""
+		doc = self._make_doc(supplier="Acme Corp ERPNext", purchase_invoice="PINV-00042")
+		mock_frappe.get_cached_doc.return_value = doc
+		mock_frappe.get_list.return_value = []
+
+		check_duplicates("OCR-IMP-00001")
+
+		pi_calls = [c for c in mock_frappe.get_list.call_args_list if c.args[0] == "Purchase Invoice"]
+		assert len(pi_calls) == 1
+		filters = pi_calls[0].kwargs["filters"]
+		assert filters.get("name") == ["!=", "PINV-00042"]
 
 	def test_finds_duplicate_by_filename(self, mock_frappe):
 		doc = self._make_doc(invoice_number="")  # No invoice number

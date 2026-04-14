@@ -6,6 +6,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt
 
+from erpocr_integration.erpnext_ocr.doctype.ocr_import.ocr_import import _resolve_ocr_description
+
 
 def _resolve_rate(item_code, purchase_order_item=None):
 	"""Get rate for PR item: PO rate > last_purchase_rate > standard_rate > 0."""
@@ -154,10 +156,11 @@ class OCRDeliveryNote(Document):
 		po.flags.ignore_mandatory = True
 		po.insert()
 
-		# Restore OCR descriptions
+		# Restore OCR descriptions. See _resolve_ocr_description() — honours
+		# user-edited item_name when description_ocr is empty.
 		matched_items = [item for item in self.items if item.item_code]
 		for po_item, ocr_item in zip(po.items, matched_items, strict=False):
-			ocr_desc = ocr_item.description_ocr or ocr_item.item_name
+			ocr_desc = _resolve_ocr_description(ocr_item)
 			if ocr_desc and ocr_desc != po_item.item_name:
 				po_item.db_set({"item_name": ocr_desc[:140], "description": ocr_desc})
 
@@ -275,10 +278,11 @@ class OCRDeliveryNote(Document):
 		pr.flags.ignore_mandatory = True
 		pr.insert()
 
-		# Restore OCR descriptions
+		# Restore OCR descriptions. See _resolve_ocr_description() — honours
+		# user-edited item_name when description_ocr is empty.
 		matched_items = [item for item in self.items if item.item_code]
 		for pr_item, ocr_item in zip(pr.items, matched_items, strict=False):
-			ocr_desc = ocr_item.description_ocr or ocr_item.item_name
+			ocr_desc = _resolve_ocr_description(ocr_item)
 			if ocr_desc and ocr_desc != pr_item.item_name:
 				pr_item.db_set({"item_name": ocr_desc[:140], "description": ocr_desc})
 

@@ -9,7 +9,41 @@ from erpocr_integration.erpnext_ocr.doctype.ocr_import.ocr_import import (
 	OCRImport,
 	_detect_tax_inclusive_rates,
 	_extract_service_pattern,
+	_resolve_ocr_description,
 )
+
+
+# ---------------------------------------------------------------------------
+# _resolve_ocr_description
+# ---------------------------------------------------------------------------
+
+
+class TestResolveOcrDescription:
+	def test_prefers_description_ocr(self):
+		item = SimpleNamespace(description_ocr="Widget for Project X", item_name="WIDG-01", item_code="WIDG-01")
+		assert _resolve_ocr_description(item) == "Widget for Project X"
+
+	def test_falls_back_to_user_edited_item_name(self):
+		# description_ocr empty, user edited item_name to something meaningful
+		item = SimpleNamespace(description_ocr="", item_name="Widget Assembly Unit 2", item_code="WIDG-01")
+		assert _resolve_ocr_description(item) == "Widget Assembly Unit 2"
+
+	def test_skips_when_item_name_is_raw_product_code(self):
+		# description_ocr empty and item_name == item_code (unchanged product code)
+		item = SimpleNamespace(description_ocr="", item_name="WIDG-01", item_code="WIDG-01")
+		assert _resolve_ocr_description(item) == ""
+
+	def test_empty_when_both_missing(self):
+		item = SimpleNamespace(description_ocr="", item_name="", item_code="WIDG-01")
+		assert _resolve_ocr_description(item) == ""
+
+	def test_strips_whitespace(self):
+		item = SimpleNamespace(description_ocr="  Widget  ", item_name="", item_code="")
+		assert _resolve_ocr_description(item) == "Widget"
+
+	def test_tolerates_none_fields(self):
+		item = SimpleNamespace(description_ocr=None, item_name=None, item_code=None)
+		assert _resolve_ocr_description(item) == ""
 
 # ---------------------------------------------------------------------------
 # Helpers

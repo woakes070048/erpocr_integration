@@ -694,19 +694,22 @@ def update_ocr_import_on_cancel(doc, method):
 
 @frappe.whitelist()
 def check_duplicates(ocr_import):
-	"""Return potential duplicate OCR Imports for the given record.
+	"""Return potential duplicates for the given OCR Import.
 
 	Matches on:
-	  1. Same invoice_number + supplier_name_ocr (both non-empty)
-	  2. Same source_filename (non-empty)
+	  1. Another OCR Import with same invoice_number + supplier_name_ocr
+	  2. Another OCR Import with same source_filename
+	  3. Existing Purchase Invoice with same bill_no + supplier (matched)
 
-	Excludes the record itself and any records with status "Error".
+	Excludes the record itself and OCR Imports with status "Error".
+	Each returned row includes a "doctype" field so the client can build
+	the correct link ("OCR Import" or "Purchase Invoice").
 	"""
 	if not frappe.has_permission("OCR Import", "read", ocr_import):
 		frappe.throw(_("You don't have permission to view this record."))
 
 	doc = frappe.get_cached_doc("OCR Import", ocr_import)
-	duplicates = {}  # name → record dict (dedup across both checks)
+	duplicates = {}  # (doctype, name) → record dict
 
 	# Check 1: same invoice_number + supplier_name_ocr
 	inv_num = (doc.invoice_number or "").strip()
@@ -724,8 +727,9 @@ def check_duplicates(ocr_import):
 			limit_page_length=10,
 			order_by="creation desc",
 		):
+			row["doctype"] = "OCR Import"
 			row["match_reason"] = "Same invoice number"
-			duplicates[row["name"]] = row
+			duplicates[("OCR Import", row["name"])] = row
 
 	# Check 2: same source_filename
 	filename = (doc.source_filename or "").strip()
@@ -741,9 +745,41 @@ def check_duplicates(ocr_import):
 			limit_page_length=10,
 			order_by="creation desc",
 		):
-			if row["name"] not in duplicates:
+			key = ("OCR Import", row["name"])
+			if key not in duplicates:
+				row["doctype"] = "OCR Import"
 				row["match_reason"] = "Same filename"
-				duplicates[row["name"]] = row
+				duplicates[key] = row
+
+	# Check 3: existing Purchase Invoice with same bill_no + matched supplier.
+	# Requires the supplier to be matched so we don't cross-match bill_no
+	# across different suppliers (e.g., "INV-001" is extremely common).
+	# Scoped to the OCR Import's company to avoid cross-company false positives
+	# in shared-supplier setups, and excludes the PI that this OCR Import has
+	# already produced (that's the expected linked document, not a duplicate).
+	supplier = (getattr(doc, "supplier", None) or "").strip()
+	if inv_num and supplier:
+		pi_filters = {"bill_no": inv_num, "supplier": supplier}
+		company = (getattr(doc, "company", None) or "").strip()
+		if company:
+			pi_filters["company"] = company
+		own_pi = (getattr(doc, "purchase_invoice", None) or "").strip()
+		if own_pi:
+			pi_filters["name"] = ["!=", own_pi]
+		for row in frappe.get_list(
+			"Purchase Invoice",
+			filters=pi_filters,
+			fields=["name", "docstatus", "creation", "bill_no", "supplier"],
+			limit_page_length=10,
+			order_by="creation desc",
+		):
+			# Translate docstatus to a readable status string for the banner
+			row["status"] = {0: "Draft", 1: "Submitted", 2: "Cancelled"}.get(row.get("docstatus"), "")
+			row["doctype"] = "Purchase Invoice"
+			row["source_type"] = ""
+			row["invoice_number"] = row.pop("bill_no", "") or ""
+			row["match_reason"] = "Existing Purchase Invoice"
+			duplicates[("Purchase Invoice", row["name"])] = row
 
 	return list(duplicates.values())
 

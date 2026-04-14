@@ -761,8 +761,10 @@ function create_document(frm, doc_type, method_name) {
 			if (r.message && r.message.length) {
 				let esc = frappe.utils.escape_html;
 				let lines = r.message.map(function(d) {
-					let link = `/app/ocr-import/${encodeURIComponent(d.name)}`;
-					return `<li><a href="${link}" target="_blank">${esc(d.name)}</a> — ${esc(d.status)} (${esc(d.match_reason)})</li>`;
+					let doctype = d.doctype || 'OCR Import';
+					let slug = frappe.router.slug(doctype);
+					let link = `/app/${slug}/${encodeURIComponent(d.name)}`;
+					return `<li><a href="${link}" target="_blank">${esc(d.name)}</a> — ${esc(doctype)} ${esc(d.status)} (${esc(d.match_reason)})</li>`;
 				}).join('');
 				frappe.confirm(
 					__('Potential duplicates found:') + `<ul>${lines}</ul>` +
@@ -791,8 +793,10 @@ function check_and_show_duplicates(frm) {
 			if (r.message && r.message.length) {
 				let esc = frappe.utils.escape_html;
 				let lines = r.message.map(function(d) {
-					let link = `/app/ocr-import/${encodeURIComponent(d.name)}`;
-					return `<a href="${link}">${esc(d.name)}</a> (${esc(d.status)} — ${esc(d.match_reason)})`;
+					let doctype = d.doctype || 'OCR Import';
+					let slug = frappe.router.slug(doctype);
+					let link = `/app/${slug}/${encodeURIComponent(d.name)}`;
+					return `<a href="${link}">${esc(d.name)}</a> (${esc(doctype)} ${esc(d.status)} — ${esc(d.match_reason)})`;
 				}).join(', ');
 				let html = `<div class="ocr-duplicate-warning form-message orange">
 					<div>${__('Possible duplicate')}:  ${lines}</div>
