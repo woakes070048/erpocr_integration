@@ -334,6 +334,25 @@ bench restart
 - [x] Workspace: OCR Fleet Slip shortcut + link
 - [x] Test suite (124 new tests — unit + integration + workflow; 481 total)
 
+### Phase 7 (v0.7) — Auto-Draft + Stats Dashboard [COMPLETE]
+- [x] `tasks/auto_draft.py` — confidence check (alias/exact matches only), doc type detection, PO auto-link, orchestration
+- [x] `enable_auto_draft` checkbox in OCR Settings (opt-in, defaults off)
+- [x] `auto_drafted` + `auto_draft_skipped_reason` fields on OCR Import for audit trail
+- [x] Hooked into `gemini_process()` after matching — low-confidence records fall through to "Needs Review" unchanged
+- [x] `stats_api.py` — whitelisted aggregation endpoint gated to owner/finance roles
+- [x] `erpnext_ocr/page/ocr_stats/` — Frappe page with counts, auto-draft ratio, fallback reasons, per-supplier throughput
+
+### Phase 8 (v0.8) — Statement Reconciliation [COMPLETE]
+- [x] `tasks/classify_document.py` — Gemini-based classifier routes each Drive scan to invoice or statement pipeline (defaults to invoice on error)
+- [x] `extract_statement_data()` in `gemini_extract.py` with statement-specific prompt and schema
+- [x] `statement_api.py` — `statement_gemini_process()` background job (extraction + matching + reconciliation)
+- [x] `tasks/reconcile.py` — matches statement lines to Purchase Invoices by supplier + `bill_no`, using `normalize_for_matching()` for reference variations (INV/00123 vs INV-00123)
+- [x] OCR Statement + OCR Statement Item DocTypes (period, opening/closing balance, transaction lines with reconciliation status)
+- [x] Reverse check — flags ERPNext PIs in the statement period that aren't on the statement (gated on both `period_from` and `period_to` being present)
+- [x] `classification_result` + `classification_confidence` fields on both OCR Import and OCR Statement for audit
+- [x] `MAX_DRIVE_RETRIES=3` retry cap applied to statements
+- [x] Color-coded reconciliation view — user handles only the mismatches/missing rows
+
 ### Future — Email Monitor Hardening
 - [ ] Replace X-GM-LABELS label manipulation with standard IMAP COPY + DELETE for moving emails from "OCR Invoices" to "OCR Processed" (more reliable across Gmail Workspace)
 - [ ] Add `\Seen` flag removal guard after Phase 2 read-write operations (prevent accidentally marking emails as read)
