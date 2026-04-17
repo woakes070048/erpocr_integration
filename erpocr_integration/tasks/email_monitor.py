@@ -426,49 +426,86 @@ def _process_email(mail, email_id, email_account, settings, use_uid=False):
 
 def _move_to_processed_folder(mail, email_id, use_uid=False):
 	"""
-	Move email from 'OCR Invoices' label to 'OCR Processed' label.
+	Move email from 'OCR Invoices' folder to 'OCR Processed' folder.
 
-	In Gmail, labels work like folders in IMAP.
-	We use Gmail's X-GM-LABELS extension for direct label manipulation.
+	Uses standard IMAP COPY + STORE \\Deleted (expunge happens at end of the
+	poll loop). This works reliably across Gmail, Google Workspace, and any
+	other IMAP provider. Falls back to Gmail's X-GM-LABELS extension if the
+	standard COPY fails — which preserves the previous behaviour for label-only
+	setups that never had actual folders.
+
+	Gmail note: Gmail exposes labels as IMAP folders, so COPY "OCR Invoices" →
+	"OCR Processed" adds the destination label. STORE \\Deleted on the source
+	folder then removes the source label (Gmail does not move to Trash from a
+	non-Inbox label). Net effect: same as the old label-manipulation path, but
+	via standard IMAP verbs.
 	"""
-	try:
-		# Gmail X-GM-LABELS: labels with spaces must be in quotes AND parentheses
-		# Try different formats to find what works
-		label_attempts = [
-			('"OCR Processed"', '"OCR Invoices"'),  # Quoted (standard for spaces)
-			("OCR_Processed", "OCR_Invoices"),  # Underscores (if labels were created that way)
-			("(OCR\\ Processed)", "(OCR\\ Invoices)"),  # Escaped spaces in parens
-		]
+	# Try the standard IMAP verbs first
+	if _imap_copy_and_delete(mail, email_id, use_uid):
+		return
 
+	# Fall back to Gmail-specific X-GM-LABELS extension
+	_gmail_label_move(mail, email_id, use_uid)
+
+
+def _imap_copy_and_delete(mail, email_id, use_uid) -> bool:
+	"""Try standard IMAP COPY + STORE \\Deleted. Returns True on success."""
+	dest_attempts = ('"OCR Processed"', "OCR Processed", "OCR_Processed")
+	for dest in dest_attempts:
+		try:
+			if use_uid:
+				status, _ = mail.uid("copy", email_id, dest)
+			else:
+				status, _ = mail.copy(email_id, dest)
+			if status != "OK":
+				continue
+
+			# Mark source copy for deletion. EXPUNGE runs once at end of poll.
+			if use_uid:
+				status, _ = mail.uid("store", email_id, "+FLAGS", "\\Deleted")
+			else:
+				status, _ = mail.store(email_id, "+FLAGS", "\\Deleted")
+			if status == "OK":
+				return True
+		except Exception:
+			continue
+	return False
+
+
+def _gmail_label_move(mail, email_id, use_uid) -> None:
+	"""Fallback: Gmail X-GM-LABELS extension for label-only setups."""
+	try:
+		label_attempts = [
+			('"OCR Processed"', '"OCR Invoices"'),
+			("OCR_Processed", "OCR_Invoices"),
+			("(OCR\\ Processed)", "(OCR\\ Invoices)"),
+		]
 		for idx, (add_label, remove_label) in enumerate(label_attempts, 1):
 			try:
-				# Add new label first
 				if use_uid:
 					status, _ = mail.uid("store", email_id, "+X-GM-LABELS", add_label)
 				else:
 					status, _ = mail.store(email_id, "+X-GM-LABELS", add_label)
-
 				if status != "OK":
 					raise Exception(f"Add label returned {status}")
 
-				# Remove old label
 				if use_uid:
 					status, _ = mail.uid("store", email_id, "-X-GM-LABELS", remove_label)
 				else:
 					status, _ = mail.store(email_id, "-X-GM-LABELS", remove_label)
-
 				if status != "OK":
 					raise Exception(f"Remove label returned {status}")
 
-				break  # If we got here without exception, it worked
+				return
 			except Exception as e:
 				if idx == len(label_attempts):
-					# Last attempt failed, log comprehensive error
 					frappe.log_error(
 						title="Email Label Manipulation Failed",
-						message=f"All label format attempts failed for email {email_id}\n\nLast error: {e!s}",
+						message=(
+							f"Both standard IMAP COPY+DELETE and X-GM-LABELS fallback failed "
+							f"for email {email_id}\n\nLast error: {e!s}"
+						),
 					)
-
 	except Exception:
 		frappe.log_error(
 			title="Email Monitoring Error",

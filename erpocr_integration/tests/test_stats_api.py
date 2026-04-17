@@ -2,7 +2,7 @@
 
 import pytest
 
-from erpocr_integration.stats_api import _compute_stats
+from erpocr_integration.stats_api import _compute_stats, get_ocr_stats
 
 
 class TestComputeStats:
@@ -67,3 +67,22 @@ class TestComputeStats:
 		stats = _compute_stats(records)
 		assert stats["auto_drafted_count"] == 1
 		assert stats["manual_count"] == 2
+
+
+class TestRoleGate:
+	def test_accounts_manager_allowed(self, mock_frappe):
+		mock_frappe.get_roles.return_value = ["Accounts Manager", "Employee"]
+		mock_frappe.get_all.return_value = []
+		result = get_ocr_stats()
+		assert result["total"] == 0
+
+	def test_system_manager_allowed(self, mock_frappe):
+		mock_frappe.get_roles.return_value = ["System Manager"]
+		mock_frappe.get_all.return_value = []
+		result = get_ocr_stats()
+		assert result["total"] == 0
+
+	def test_other_roles_rejected(self, mock_frappe):
+		mock_frappe.get_roles.return_value = ["OCR Manager", "Accounts User"]
+		with pytest.raises(Exception):
+			get_ocr_stats()

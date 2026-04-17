@@ -73,10 +73,12 @@ doc_events = {
 		"on_submit": [
 			"erpocr_integration.api.update_ocr_import_on_submit",
 			"erpocr_integration.fleet_api.update_ocr_fleet_on_submit",
+			"erpocr_integration.statement_api.update_statements_on_pi_submit",
 		],
 		"on_cancel": [
 			"erpocr_integration.api.update_ocr_import_on_cancel",
 			"erpocr_integration.fleet_api.update_ocr_fleet_on_cancel",
+			"erpocr_integration.statement_api.update_statements_on_pi_cancel",
 		],
 	},
 	"Purchase Receipt": {

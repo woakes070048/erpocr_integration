@@ -3,12 +3,15 @@
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from unittest.mock import MagicMock
 
 import pytest
 
 from erpocr_integration.tasks.email_monitor import (
 	_decode_header_value,
 	_extract_pdfs_from_email,
+	_imap_copy_and_delete,
+	_move_to_processed_folder,
 )
 
 PDF_BYTES = b"%PDF-1.4 fake-pdf-content"
@@ -174,3 +177,96 @@ class TestDecodeHeaderValue:
 		result = _decode_header_value(encoded)
 		assert "Star" in result
 		assert "Pops" in result
+
+
+# ---------------------------------------------------------------------------
+# _move_to_processed_folder (IMAP COPY+DELETE with X-GM-LABELS fallback)
+# ---------------------------------------------------------------------------
+
+
+class TestImapCopyAndDelete:
+	def test_success_on_first_destination_variant(self):
+		mail = MagicMock()
+		mail.uid.return_value = ("OK", [])
+
+		result = _imap_copy_and_delete(mail, "123", use_uid=True)
+
+		assert result is True
+		# First call = copy, second call = store +FLAGS \Deleted
+		copy_call = mail.uid.call_args_list[0]
+		store_call = mail.uid.call_args_list[1]
+		assert copy_call.args[0] == "copy"
+		assert copy_call.args[2] == '"OCR Processed"'
+		assert store_call.args[0] == "store"
+		assert store_call.args[2] == "+FLAGS"
+		assert store_call.args[3] == "\\Deleted"
+
+	def test_falls_through_variants_until_copy_succeeds(self):
+		mail = MagicMock()
+		# First two COPY attempts fail, third succeeds; then STORE succeeds
+		mail.uid.side_effect = [
+			("NO", []),  # "OCR Processed" quoted — fails
+			("NO", []),  # "OCR Processed" unquoted — fails
+			("OK", []),  # OCR_Processed — succeeds
+			("OK", []),  # STORE +FLAGS \Deleted
+		]
+
+		result = _imap_copy_and_delete(mail, "123", use_uid=True)
+
+		assert result is True
+
+	def test_returns_false_when_all_copy_variants_fail(self):
+		mail = MagicMock()
+		mail.uid.return_value = ("NO", [])
+
+		result = _imap_copy_and_delete(mail, "123", use_uid=True)
+
+		assert result is False
+
+	def test_returns_false_when_copy_raises(self):
+		mail = MagicMock()
+		mail.uid.side_effect = Exception("boom")
+
+		result = _imap_copy_and_delete(mail, "123", use_uid=True)
+
+		assert result is False
+
+	def test_non_uid_uses_store_and_copy(self):
+		mail = MagicMock()
+		mail.copy.return_value = ("OK", [])
+		mail.store.return_value = ("OK", [])
+
+		result = _imap_copy_and_delete(mail, "123", use_uid=False)
+
+		assert result is True
+		mail.copy.assert_called_once()
+		mail.store.assert_called_once()
+		# uid() must NOT be called in non-UID mode
+		mail.uid.assert_not_called()
+
+
+class TestMoveToProcessedFolder:
+	def test_prefers_standard_copy_and_skips_label_fallback(self):
+		mail = MagicMock()
+		mail.uid.return_value = ("OK", [])  # COPY + STORE both succeed
+
+		_move_to_processed_folder(mail, "123", use_uid=True)
+
+		# Should not attempt X-GM-LABELS if standard COPY+DELETE worked.
+		# Only 2 calls expected (copy + store \Deleted), not 4 (copy + store + add label + remove label).
+		assert mail.uid.call_count == 2
+
+	def test_falls_back_to_x_gm_labels_when_copy_fails(self, mock_frappe):
+		mail = MagicMock()
+		# All COPY attempts fail; X-GM-LABELS succeeds on first try
+		mail.uid.side_effect = [
+			("NO", []),  # copy "OCR Processed"
+			("NO", []),  # copy OCR Processed
+			("NO", []),  # copy OCR_Processed
+			("OK", []),  # +X-GM-LABELS "OCR Processed"
+			("OK", []),  # -X-GM-LABELS "OCR Invoices"
+		]
+
+		_move_to_processed_folder(mail, "123", use_uid=True)
+
+		assert mail.uid.call_count == 5

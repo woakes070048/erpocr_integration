@@ -3,7 +3,12 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from erpocr_integration.statement_api import _populate_ocr_statement, _run_statement_matching
+from erpocr_integration.statement_api import (
+	_populate_ocr_statement,
+	_reconcile_statements_for_pi,
+	_run_statement_matching,
+	update_statements_on_pi_submit,
+)
 
 
 class TestPopulateOcrStatement:
@@ -192,3 +197,70 @@ class TestRunStatementMatching:
 				_run_statement_matching(doc)
 				# Should be called with default threshold of 80
 				mock_fuzzy.assert_called_once_with("Some Supplier", 80)
+
+
+class TestReconcileStatementsForPi:
+	def test_returns_empty_when_no_supplier(self, mock_frappe):
+		pi = SimpleNamespace(supplier=None)
+		assert _reconcile_statements_for_pi(pi) == []
+		mock_frappe.get_all.assert_not_called()
+
+	def test_only_touches_reconciled_statements(self, mock_frappe):
+		"""Query must filter to status=Reconciled (not Reviewed)."""
+		pi = SimpleNamespace(supplier="SUP-001")
+		mock_frappe.get_all.return_value = []
+
+		_reconcile_statements_for_pi(pi)
+
+		call = mock_frappe.get_all.call_args_list[0]
+		filters = call.kwargs.get("filters") or call.args[1] if len(call.args) > 1 else call.kwargs["filters"]
+		assert filters == {"supplier": "SUP-001", "status": "Reconciled"}
+
+	def test_rereconciles_each_matching_statement(self, mock_frappe):
+		pi = SimpleNamespace(supplier="SUP-001")
+		mock_frappe.get_all.return_value = [{"name": "OCR-STMT-001"}, {"name": "OCR-STMT-002"}]
+
+		stmt1 = SimpleNamespace(
+			name="OCR-STMT-001",
+			items=[
+				SimpleNamespace(
+					recon_status="Missing from ERPNext",
+					matched_invoice="",
+					erp_amount=0,
+					erp_outstanding=0,
+					difference=0,
+				),
+				SimpleNamespace(
+					recon_status="Not in Statement",
+					matched_invoice="PINV-old",
+					erp_amount=0,
+					erp_outstanding=0,
+					difference=0,
+				),
+			],
+			reverse_check_skipped=1,
+			save=lambda **kw: None,
+		)
+		stmt2 = SimpleNamespace(
+			name="OCR-STMT-002", items=[], reverse_check_skipped=0, save=lambda **kw: None
+		)
+		mock_frappe.get_doc.side_effect = [stmt1, stmt2]
+
+		with patch("erpocr_integration.tasks.reconcile.reconcile_statement") as mock_reconcile:
+			touched = _reconcile_statements_for_pi(pi)
+
+		assert touched == ["OCR-STMT-001", "OCR-STMT-002"]
+		# Prior "Not in Statement" rows must be dropped so reconcile can re-seed them
+		assert all(getattr(i, "recon_status", "") != "Not in Statement" for i in stmt1.items)
+		# reverse_check_skipped reset
+		assert stmt1.reverse_check_skipped == 0
+		assert mock_reconcile.call_count == 2
+
+	def test_submit_hook_never_raises(self, mock_frappe):
+		"""PI submit must never fail because statement reconciliation fails."""
+		pi = SimpleNamespace(supplier="SUP-001")
+		mock_frappe.get_all.side_effect = RuntimeError("boom")
+
+		# Should not raise even though get_all blew up
+		update_statements_on_pi_submit(pi)
+		mock_frappe.log_error.assert_called_once()

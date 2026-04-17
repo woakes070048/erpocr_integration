@@ -1,10 +1,13 @@
 """OCR stats API — aggregation endpoint for the stats dashboard.
 
-Role-gated to System Manager. Not visible to regular accounts users.
+Role-gated to System Manager + Accounts Manager (owner/finance roles).
+Not visible to regular accounts users or the OCR Manager operations role.
 """
 
 import frappe
 from frappe import _
+
+_STATS_ROLES = frozenset({"System Manager", "Accounts Manager"})
 
 
 @frappe.whitelist()
@@ -15,8 +18,8 @@ def get_ocr_stats(from_date=None, to_date=None):
 	    from_date: Start date filter (default: 90 days ago)
 	    to_date: End date filter (default: today)
 	"""
-	if "System Manager" not in frappe.get_roles():
-		frappe.throw(_("Only System Managers can view OCR stats."))
+	if not _STATS_ROLES.intersection(frappe.get_roles()):
+		frappe.throw(_("Only System Managers and Accounts Managers can view OCR stats."))
 
 	if not from_date:
 		from_date = frappe.utils.add_days(frappe.utils.today(), -90)

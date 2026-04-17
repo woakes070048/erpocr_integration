@@ -164,3 +164,66 @@ def rereconcile_statement(statement_name: str) -> None:
 	reconcile_statement(doc)
 	doc.status = "Reconciled"
 	doc.save()
+
+
+def _reconcile_statements_for_pi(pi_doc) -> list[str]:
+	"""Find Reconciled statements that reference this PI's supplier and re-run
+	reconciliation on them. Intended to be called from doc_events on Purchase
+	Invoice submit/cancel so a late-arriving PI (or a cancelled one) shows up
+	in any open statement for the same supplier without manual Re-Reconcile.
+
+	Only statements in status "Reconciled" are touched. "Reviewed" statements
+	are intentionally left alone — the user has signed them off.
+
+	Returns the names of the statements that were re-reconciled.
+	"""
+	if not pi_doc.supplier:
+		return []
+
+	from erpocr_integration.tasks.reconcile import reconcile_statement
+
+	candidates = frappe.get_all(
+		"OCR Statement",
+		filters={"supplier": pi_doc.supplier, "status": "Reconciled"},
+		fields=["name"],
+		ignore_permissions=True,
+	)
+	touched = []
+	for row in candidates:
+		stmt = frappe.get_doc("OCR Statement", row["name"])
+		# Drop any prior reverse-check rows so reconcile_statement can re-seed them
+		stmt.items = [i for i in stmt.items if getattr(i, "recon_status", "") != "Not in Statement"]
+		for item in stmt.items:
+			item.recon_status = ""
+			item.matched_invoice = ""
+			item.erp_amount = 0
+			item.erp_outstanding = 0
+			item.difference = 0
+		stmt.reverse_check_skipped = 0
+		reconcile_statement(stmt)
+		stmt.save(ignore_permissions=True)
+		touched.append(stmt.name)
+	return touched
+
+
+def update_statements_on_pi_submit(doc, method=None):
+	"""doc_events hook: refresh statements for this supplier after PI submit."""
+	try:
+		_reconcile_statements_for_pi(doc)
+	except Exception:
+		# Never let statement reconciliation block a PI submit
+		frappe.log_error(
+			title="OCR Statement refresh failed on PI submit",
+			message=frappe.get_traceback(),
+		)
+
+
+def update_statements_on_pi_cancel(doc, method=None):
+	"""doc_events hook: refresh statements for this supplier after PI cancel."""
+	try:
+		_reconcile_statements_for_pi(doc)
+	except Exception:
+		frappe.log_error(
+			title="OCR Statement refresh failed on PI cancel",
+			message=frappe.get_traceback(),
+		)

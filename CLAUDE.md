@@ -353,8 +353,12 @@ bench restart
 - [x] `MAX_DRIVE_RETRIES=3` retry cap applied to statements
 - [x] Color-coded reconciliation view — user handles only the mismatches/missing rows
 
+### Phase 9 (v0.9) — Reliability & Role Polish [COMPLETE]
+- [x] Email move: standard IMAP `COPY` + `STORE \Deleted` is now the primary path; X-GM-LABELS kept as a fallback for label-only Gmail setups (more reliable across Gmail Workspace)
+- [x] Statement auto-refresh: Purchase Invoice `on_submit`/`on_cancel` re-runs reconciliation on any OCR Statement in status "Reconciled" for that supplier (Reviewed statements untouched); failures never block PI submit
+- [x] Stats role widened: `System Manager` + `Accounts Manager` (owner/finance) — OCR Manager (operations) stays off the dashboard
+
 ### Future — Email Monitor Hardening
-- [ ] Replace X-GM-LABELS label manipulation with standard IMAP COPY + DELETE for moving emails from "OCR Invoices" to "OCR Processed" (more reliable across Gmail Workspace)
 - [ ] Add `\Seen` flag removal guard after Phase 2 read-write operations (prevent accidentally marking emails as read)
 
 ## Configuration
