@@ -23,9 +23,9 @@ doctype_js = {
 	"OCR Fleet Slip": "public/js/ocr_fleet_slip.js",
 	"OCR Statement": "public/js/ocr_statement.js",
 }
-doctype_list_js = {
-	"OCR Import": "public/js/ocr_import_list.js",
-}
+# OCR Import list script lives next to its doctype JSON
+# (erpnext_ocr/doctype/ocr_import/ocr_import_list.js) and is auto-loaded by
+# Frappe — no doctype_list_js hook needed.
 
 # Home Pages
 # ----------

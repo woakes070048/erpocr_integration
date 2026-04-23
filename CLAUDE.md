@@ -362,7 +362,7 @@ bench restart
 ### v1.0 — Stable + Operational Polish
 - [x] CHANGELOG.md curated from git history (Phases 1–9 + all point releases)
 - [x] Audit log: `track_changes: 1` is enabled on OCR Import / DN / Fleet Slip / Statement parent DocTypes — Frappe's standard Version log captures every supplier/item-match override (including child-table diffs) and surfaces them on each form's Activity timeline. No custom audit code needed; the trail is already there.
-- [x] Bulk actions on OCR Import list view (`public/js/ocr_import_list.js`): "Create Purchase Invoice" runs `create_purchase_invoice` over selected Matched/Needs Review records; "Unlink & Reset Drafts" runs `unlink_document` over selected Draft Created records. Per-record errors are surfaced in a summary dialog; status guards on the existing whitelisted methods prevent unsafe operations.
+- [x] Bulk actions on OCR Import list view (`erpnext_ocr/doctype/ocr_import/ocr_import_list.js`): "Create Purchase Invoice" runs `create_purchase_invoice` over selected Matched/Needs Review records; "Unlink & Reset Drafts" runs `unlink_document` over selected Draft Created records. Bulk PI creation runs `check_duplicates` per record up front and skips any with duplicates (matching the single-record form flow). Per-record errors are surfaced in a summary dialog; status guards on the existing whitelisted methods prevent unsafe operations.
 
 ## Configuration
 

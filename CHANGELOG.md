@@ -2,6 +2,12 @@
 
 All notable changes to the ERPNext OCR Integration app are documented here. Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] — 2026-04-22
+
+### Fixed
+- Bulk actions on OCR Import list view were clobbering the existing listview config (`add_fields`, `get_indicator`, currency formatter). Consolidated everything into the auto-loaded `erpnext_ocr/doctype/ocr_import/ocr_import_list.js` and removed the unused `doctype_list_js` hook entry.
+- Bulk Create Purchase Invoice now runs `check_duplicates` on each selected record up front and surfaces any hits in a single confirm dialog. Records with duplicates are skipped and reported in the summary — matching the single-record form flow, preventing silent duplicate PI drafts.
+
 ## [1.0.0] — 2026-04-22
 
 First stable release. The full pipeline — invoices, delivery notes, fleet slips, and statements — has been in active production use, and the Phase 9 reliability hardening closed the last outstanding item on the roadmap. 578 tests pass, CI green, no known regressions from the 0.9.x line.
@@ -192,6 +198,7 @@ First stable release. The full pipeline — invoices, delivery notes, fleet slip
 - Supplier and item matching with alias learning.
 - Automatic draft PI creation with tax, currency, and PO linkage.
 
+[1.0.1]: https://github.com/wphamman/erpocr_integration/releases/tag/v1.0.1
 [1.0.0]: https://github.com/wphamman/erpocr_integration/releases/tag/v1.0.0
 [0.9.1]: https://github.com/wphamman/erpocr_integration/releases/tag/v0.9.1
 [0.9.0]: https://github.com/wphamman/erpocr_integration/releases/tag/v0.9.0
