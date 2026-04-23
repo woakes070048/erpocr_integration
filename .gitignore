@@ -26,3 +26,7 @@ gen-lang-client*.json
 *.pem
 *.key
 credentials.json
+
+# Local AI tooling config
+.codex
+.aider*
