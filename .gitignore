@@ -30,3 +30,9 @@ credentials.json
 # Local AI tooling config
 .codex
 .aider*
+
+# Ephemeral review artifacts from skill-driven audit sessions
+/SKILLS_INVENTORY.md
+/SKILLS_TRIAGE.md
+/REVIEW.md
+/CODEX_REVIEW.md
