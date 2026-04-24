@@ -21,10 +21,23 @@ def get_ocr_stats(from_date=None, to_date=None):
 	if not _STATS_ROLES.intersection(frappe.get_roles()):
 		frappe.throw(_("Only System Managers and Accounts Managers can view OCR stats."))
 
-	if not from_date:
-		from_date = frappe.utils.add_days(frappe.utils.today(), -90)
-	if not to_date:
-		to_date = frappe.utils.today()
+	# Validate + clamp the window. Arbitrary date strings from the client
+	# (or no client at all, via direct API call) could widen the scan beyond
+	# useful — cap the range at 365 days and reject unparseable input.
+	try:
+		from_date = (
+			frappe.utils.getdate(from_date)
+			if from_date
+			else frappe.utils.getdate(frappe.utils.add_days(frappe.utils.today(), -90))
+		)
+		to_date = frappe.utils.getdate(to_date) if to_date else frappe.utils.getdate(frappe.utils.today())
+	except Exception:
+		frappe.throw(_("Invalid date range."))
+
+	if from_date > to_date:
+		frappe.throw(_("from_date must be on or before to_date."))
+	if (to_date - from_date).days > 365:
+		frappe.throw(_("Date range cannot exceed 365 days."))
 
 	records = frappe.get_all(
 		"OCR Import",

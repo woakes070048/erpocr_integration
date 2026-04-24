@@ -2,6 +2,33 @@
 
 All notable changes to the ERPNext OCR Integration app are documented here. Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] — 2026-04-24
+
+Fixes from a dual-model review pass (second-opinion audit surfaced gaps the first review missed).
+
+### Security
+- All `create_*` whitelisted methods on OCR Import, OCR Delivery Note, and OCR Fleet Slip now explicitly check `frappe.has_permission(<source>, "write", self.name)` before creating the downstream document. `frappe.client.run_doc_method` only checks read permission by default, so a user with read-but-not-write on an OCR record could otherwise trigger document creation without being able to edit the source. Not a reported exploit — defence in depth.
+
+### Correctness
+- Statement auto-refresh on Purchase Invoice submit/cancel is now enqueued on the `short` queue (was synchronous). For a supplier with 50+ Reconciled statements, a PI submit previously re-reconciled all of them inside the submit transaction; now the submit returns immediately and reconciliation happens out-of-band. `update_statements_on_pi_submit` / `_on_pi_cancel` swallow enqueue failures so a flaky worker can't block PI submit.
+- `reconcile_statement()` now bounds its Purchase Invoice fetch to the last 365 days when statement period dates are missing. An unbounded `get_all` could return 10k+ rows for a busy supplier without a statement period set.
+
+### Hardening
+- `purchase_receipt_link_query()` caps the user-supplied `txt` at 80 chars and escapes LIKE wildcards (`%`, `_`, `\`) before the LIKE scan. Prevents a malicious or garbage search string from forcing a full-table scan or silently mismatching via embedded wildcards.
+- `get_ocr_stats()` now validates the date range: unparseable input is rejected, inverted ranges (from > to) are rejected, and ranges over 365 days are rejected. Previously any string reached `get_all` and downstream.
+
+### Idiom
+- `OCRServiceMapping.validate()` now wraps its cross-company expense-account error in `_()` (was a bare f-string). Matches project convention.
+
+### Tests
+- +4 tests covering the new stats_api date-range validation + enqueue-based statement refresh. 591 tests pass.
+
+### Not changed — reviewed and deferred
+- Drive polling unbounded run-time (Codex M4) — real but needs architectural decision on per-run budget vs. per-file timeout.
+- Drive SDK missing per-request timeout (Codex M5) — Google SDK has internal timeouts; deferring until we observe a hang in prod.
+- Fuzzy matching loads all suppliers/items per OCR line (Codex M9) — would need incremental indexing; current volume doesn't warrant it.
+- Email `\Seen` race on failed move (Codex M1) — existing behaviour is intentional: email is a one-shot ingestion, OCR Import is the persistent retry unit. Failed Gemini calls retry via the OCR Import "Retry Extraction" button, not by re-reading the email.
+
 ## [1.0.3] — 2026-04-23
 
 ### Added
@@ -209,6 +236,7 @@ First stable release. The full pipeline — invoices, delivery notes, fleet slip
 - Supplier and item matching with alias learning.
 - Automatic draft PI creation with tax, currency, and PO linkage.
 
+[1.0.4]: https://github.com/wphamman/erpocr_integration/releases/tag/v1.0.4
 [1.0.3]: https://github.com/wphamman/erpocr_integration/releases/tag/v1.0.3
 [1.0.2]: https://github.com/wphamman/erpocr_integration/releases/tag/v1.0.2
 [1.0.1]: https://github.com/wphamman/erpocr_integration/releases/tag/v1.0.1

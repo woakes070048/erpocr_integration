@@ -75,6 +75,9 @@ class OCRFleetSlip(Document):
 	@frappe.whitelist()
 	def create_purchase_invoice(self):
 		"""Create a Purchase Invoice draft for fleet card mode."""
+		# Explicit source-doc write guard — run_doc_method only checks read by default.
+		if not frappe.has_permission("OCR Fleet Slip", "write", self.name):
+			frappe.throw(_("You don't have permission to modify this OCR Fleet Slip."))
 		if not frappe.has_permission("Purchase Invoice", "create"):
 			frappe.throw(_("You don't have permission to create Purchase Invoices."))
 

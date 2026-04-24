@@ -365,6 +365,12 @@ class OCRImport(Document):
 	@frappe.whitelist()
 	def create_purchase_invoice(self):
 		"""Create a Purchase Invoice draft from this OCR Import record."""
+		# Explicit source-doc write guard: frappe.client.run_doc_method only checks
+		# read permission by default, so a user with "read" on OCR Import + "create"
+		# on Purchase Invoice could otherwise trigger this without being able to edit
+		# the source record. Block that.
+		if not frappe.has_permission("OCR Import", "write", self.name):
+			frappe.throw(_("You don't have permission to modify this OCR Import."))
 		if not frappe.has_permission("Purchase Invoice", "create"):
 			frappe.throw(_("You don't have permission to create Purchase Invoices."))
 
@@ -579,6 +585,9 @@ class OCRImport(Document):
 	@frappe.whitelist()
 	def create_purchase_receipt(self):
 		"""Create a Purchase Receipt draft from this OCR Import record."""
+		# Explicit source-doc write guard — see create_purchase_invoice for rationale.
+		if not frappe.has_permission("OCR Import", "write", self.name):
+			frappe.throw(_("You don't have permission to modify this OCR Import."))
 		if not frappe.has_permission("Purchase Receipt", "create"):
 			frappe.throw(_("You don't have permission to create Purchase Receipts."))
 
@@ -739,6 +748,9 @@ class OCRImport(Document):
 	@frappe.whitelist()
 	def create_journal_entry(self):
 		"""Create a Journal Entry draft from this OCR Import record."""
+		# Explicit source-doc write guard — see create_purchase_invoice for rationale.
+		if not frappe.has_permission("OCR Import", "write", self.name):
+			frappe.throw(_("You don't have permission to modify this OCR Import."))
 		if not frappe.has_permission("Journal Entry", "create"):
 			frappe.throw(_("You don't have permission to create Journal Entries."))
 

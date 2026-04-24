@@ -871,7 +871,11 @@ def purchase_receipt_link_query(doctype, txt, searchfield, start, page_len, filt
 	if not po_company:
 		return []
 
-	txt = txt or ""
+	# Cap txt length + escape LIKE wildcards so a malicious/garbage search
+	# string can't force a full-table LIKE scan or mismatch via embedded
+	# %/_ characters. 80 chars covers every real PR naming series.
+	txt = (txt or "")[:80]
+	txt = txt.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 	# Fetch candidate PR names via SQL (needed for child-table JOIN)
 	# then filter through per-document permission check

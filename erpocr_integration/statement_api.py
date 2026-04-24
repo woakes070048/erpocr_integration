@@ -206,14 +206,42 @@ def _reconcile_statements_for_pi(pi_doc) -> list[str]:
 	return touched
 
 
+def _enqueue_statement_refresh(supplier: str) -> None:
+	"""Enqueue the statement refresh on the short queue so we don't block the
+	user's PI submit. Running it synchronously could re-reconcile N statements
+	inside the PI transaction path — for a supplier with 50 Reconciled
+	statements that's 50x get_doc + reconcile + save before the submit returns.
+	"""
+	if not supplier:
+		return
+	frappe.enqueue(
+		"erpocr_integration.statement_api._reconcile_statements_for_supplier",
+		queue="short",
+		timeout=300,
+		supplier=supplier,
+	)
+
+
+def _reconcile_statements_for_supplier(supplier: str) -> list[str]:
+	"""Background-job entry point — set admin user, then reconcile."""
+	frappe.set_user("Administrator")
+	# Rebuild a minimal pi_doc-shaped namespace so we can reuse the core helper
+	from types import SimpleNamespace
+
+	return _reconcile_statements_for_pi(SimpleNamespace(supplier=supplier))
+
+
 def update_statements_on_pi_submit(doc, method=None):
-	"""doc_events hook: refresh statements for this supplier after PI submit."""
+	"""doc_events hook: refresh statements for this supplier after PI submit.
+
+	Enqueued — must not block the PI submit transaction.
+	"""
 	try:
-		_reconcile_statements_for_pi(doc)
+		_enqueue_statement_refresh(doc.supplier)
 	except Exception:
 		# Never let statement reconciliation block a PI submit
 		frappe.log_error(
-			title="OCR Statement refresh failed on PI submit",
+			title="OCR Statement refresh enqueue failed on PI submit",
 			message=frappe.get_traceback(),
 		)
 
@@ -221,9 +249,9 @@ def update_statements_on_pi_submit(doc, method=None):
 def update_statements_on_pi_cancel(doc, method=None):
 	"""doc_events hook: refresh statements for this supplier after PI cancel."""
 	try:
-		_reconcile_statements_for_pi(doc)
+		_enqueue_statement_refresh(doc.supplier)
 	except Exception:
 		frappe.log_error(
-			title="OCR Statement refresh failed on PI cancel",
+			title="OCR Statement refresh enqueue failed on PI cancel",
 			message=frappe.get_traceback(),
 		)

@@ -20,7 +20,11 @@ def reconcile_statement(ocr_statement) -> None:
 	if not ocr_statement.supplier or not ocr_statement.company:
 		return
 
-	# Get all submitted PIs for this supplier
+	# Get all submitted PIs for this supplier.
+	# When statement period dates are present, bound by them. When missing, fall
+	# back to a 365-day window from today — an unbounded get_all on a supplier
+	# with 10k+ PIs would blow out query latency and memory; 1 year covers every
+	# realistic late-arriving statement without opening the whole history.
 	pi_filters = {
 		"supplier": ocr_statement.supplier,
 		"company": ocr_statement.company,
@@ -30,6 +34,11 @@ def reconcile_statement(ocr_statement) -> None:
 		pi_filters["posting_date"] = [
 			"between",
 			[ocr_statement.period_from, ocr_statement.period_to],
+		]
+	else:
+		pi_filters["posting_date"] = [
+			">=",
+			frappe.utils.add_days(frappe.utils.today(), -365),
 		]
 
 	all_pis = frappe.get_all(

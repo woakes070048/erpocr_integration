@@ -257,10 +257,31 @@ class TestReconcileStatementsForPi:
 		assert mock_reconcile.call_count == 2
 
 	def test_submit_hook_never_raises(self, mock_frappe):
-		"""PI submit must never fail because statement reconciliation fails."""
-		pi = SimpleNamespace(supplier="SUP-001")
-		mock_frappe.get_all.side_effect = RuntimeError("boom")
+		"""PI submit must never fail because statement-refresh enqueue fails.
 
-		# Should not raise even though get_all blew up
+		As of v1.0.4 the refresh is enqueued via frappe.enqueue (not run inline)
+		to avoid blocking the PI transaction. Verify the try/except still swallows
+		a broken enqueue so a flaky worker can't prevent PI submit.
+		"""
+		pi = SimpleNamespace(supplier="SUP-001")
+		mock_frappe.enqueue.side_effect = RuntimeError("boom")
+
+		# Should not raise even though enqueue blew up
 		update_statements_on_pi_submit(pi)
 		mock_frappe.log_error.assert_called_once()
+
+	def test_submit_hook_enqueues_refresh(self, mock_frappe):
+		"""Happy path — hook enqueues the short-queue refresh job."""
+		pi = SimpleNamespace(supplier="SUP-001")
+		update_statements_on_pi_submit(pi)
+		mock_frappe.enqueue.assert_called_once()
+		call = mock_frappe.enqueue.call_args
+		assert call.args[0] == "erpocr_integration.statement_api._reconcile_statements_for_supplier"
+		assert call.kwargs.get("supplier") == "SUP-001"
+		assert call.kwargs.get("queue") == "short"
+
+	def test_submit_hook_skips_when_supplier_missing(self, mock_frappe):
+		"""No supplier → nothing to do; don't enqueue a no-op job."""
+		pi = SimpleNamespace(supplier=None)
+		update_statements_on_pi_submit(pi)
+		mock_frappe.enqueue.assert_not_called()

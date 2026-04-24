@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
 
 
@@ -33,5 +34,7 @@ class OCRServiceMapping(Document):
 			account_company = frappe.db.get_value("Account", self.expense_account, "company")
 			if account_company != self.company:
 				frappe.throw(
-					f"Expense Account {self.expense_account} does not belong to company {self.company}"
+					_("Expense Account {0} does not belong to company {1}").format(
+						self.expense_account, self.company
+					)
 				)

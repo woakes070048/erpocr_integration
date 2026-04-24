@@ -70,15 +70,35 @@ class TestComputeStats:
 
 
 class TestRoleGate:
+	"""Exercises the role gate + date-window validation in get_ocr_stats().
+
+	The endpoint calls frappe.utils.getdate / add_days / today via attribute
+	access on the frappe mock, then compares the results (> and subtraction),
+	so the mock must return real datetime.date objects for that to succeed.
+	"""
+
+	@staticmethod
+	def _install_date_mocks(mock_frappe):
+		import datetime
+
+		today = datetime.date(2026, 4, 24)
+		mock_frappe.utils.today.return_value = today
+		mock_frappe.utils.add_days.side_effect = lambda d, n: (
+			(d if isinstance(d, datetime.date) else today) + datetime.timedelta(days=n)
+		)
+		mock_frappe.utils.getdate.side_effect = lambda v=None: v if isinstance(v, datetime.date) else today
+
 	def test_accounts_manager_allowed(self, mock_frappe):
 		mock_frappe.get_roles.return_value = ["Accounts Manager", "Employee"]
 		mock_frappe.get_all.return_value = []
+		self._install_date_mocks(mock_frappe)
 		result = get_ocr_stats()
 		assert result["total"] == 0
 
 	def test_system_manager_allowed(self, mock_frappe):
 		mock_frappe.get_roles.return_value = ["System Manager"]
 		mock_frappe.get_all.return_value = []
+		self._install_date_mocks(mock_frappe)
 		result = get_ocr_stats()
 		assert result["total"] == 0
 
@@ -86,3 +106,25 @@ class TestRoleGate:
 		mock_frappe.get_roles.return_value = ["OCR Manager", "Accounts User"]
 		with pytest.raises(Exception):
 			get_ocr_stats()
+
+	def test_rejects_inverted_date_range(self, mock_frappe):
+		mock_frappe.get_roles.return_value = ["System Manager"]
+		self._install_date_mocks(mock_frappe)
+		import datetime
+
+		with pytest.raises(Exception):
+			get_ocr_stats(
+				from_date=datetime.date(2026, 4, 24),
+				to_date=datetime.date(2026, 3, 1),
+			)
+
+	def test_rejects_oversized_range(self, mock_frappe):
+		mock_frappe.get_roles.return_value = ["System Manager"]
+		self._install_date_mocks(mock_frappe)
+		import datetime
+
+		with pytest.raises(Exception):
+			get_ocr_stats(
+				from_date=datetime.date(2024, 1, 1),
+				to_date=datetime.date(2026, 4, 24),
+			)

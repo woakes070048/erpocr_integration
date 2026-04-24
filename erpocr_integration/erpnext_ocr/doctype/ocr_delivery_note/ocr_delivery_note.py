@@ -93,6 +93,9 @@ class OCRDeliveryNote(Document):
 	@frappe.whitelist()
 	def create_purchase_order(self):
 		"""Create a draft Purchase Order from this OCR Delivery Note."""
+		# Explicit source-doc write guard — run_doc_method only checks read by default.
+		if not frappe.has_permission("OCR Delivery Note", "write", self.name):
+			frappe.throw(_("You don't have permission to modify this OCR Delivery Note."))
 		if not frappe.has_permission("Purchase Order", "create"):
 			frappe.throw(_("You don't have permission to create Purchase Orders."))
 
@@ -184,6 +187,9 @@ class OCRDeliveryNote(Document):
 	@frappe.whitelist()
 	def create_purchase_receipt(self):
 		"""Create a Purchase Receipt draft from this OCR Delivery Note."""
+		# Explicit source-doc write guard — run_doc_method only checks read by default.
+		if not frappe.has_permission("OCR Delivery Note", "write", self.name):
+			frappe.throw(_("You don't have permission to modify this OCR Delivery Note."))
 		if not frappe.has_permission("Purchase Receipt", "create"):
 			frappe.throw(_("You don't have permission to create Purchase Receipts."))
 
