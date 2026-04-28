@@ -12,7 +12,7 @@
   <a href="https://github.com/wphamman/erpocr_integration/blob/master/license.txt">
     <img src="https://img.shields.io/badge/license-GPLv3-blue.svg" alt="License: GPLv3">
   </a>
-  <img src="https://img.shields.io/badge/version-1.0.4-blue" alt="Version 1.0.4">
+  <img src="https://img.shields.io/badge/version-1.0.5-blue" alt="Version 1.0.5">
   <img src="https://img.shields.io/badge/ERPNext-v15-blue" alt="ERPNext v15">
   <img src="https://img.shields.io/badge/python-3.10+-blue" alt="Python 3.10+">
 </p>
@@ -46,6 +46,7 @@ A [Frappe](https://frappeframework.com/) custom app that uses Google's **Gemini 
 - **Vehicle Matching** — Registration number matched to Fleet Vehicle for auto-configured posting
 - **Per-Vehicle Posting** — Fleet card vehicles use card provider as supplier; direct expense vehicles use a default supplier
 - **Always Purchase Invoice** — All fleet slips create PIs (no JE path)
+- **Optional `fleet_management` Integration** — Works standalone or alongside the [`fleet_management`](https://github.com/wphamman/fleet_management) app. When `fleet_management` is installed, OCR-generated fleet PIs are automatically tagged with `custom_fleet_vehicle` so they appear in vehicle-level cost reports. Pure runtime feature-detect — no hard dependency, no install ordering required, app works identically without `fleet_management`.
 
 ### Shared Features
 - **Gemini AI Extraction** — Structured JSON output with confidence scoring

@@ -110,8 +110,9 @@ Pending → Needs Review → Matched → Draft Created → Completed / No Action
 - **PI creation guard**: `create_purchase_invoice()` requires `fleet_vehicle` to be set (prevents unverified vehicle traceability)
 - **Merchant ≠ Supplier**: merchant name (Shell, Engen) is informational; PI supplier comes from vehicle config or default
 - **Item from slip_type**: Fuel → `fleet_fuel_item`, Toll → `fleet_toll_item` from OCR Settings (no item matching needed)
-- **Soft dependency on fleet_management**: vehicle matching only works if Fleet Vehicle DocType exists; graceful degradation otherwise
-- **Custom fields on Fleet Vehicle**: installed via fixtures (`custom_field.json`) — `custom_fleet_card_provider`, `custom_fleet_control_account`, `custom_cost_center`
+- **Optional `fleet_management` integration**: OCR runs **standalone or alongside `fleet_management`** — neither app imports nor depends on the other. Integration is bidirectional via ERPNext custom fields each app plants on the other's territory; both directions are runtime feature-detected so install order doesn't matter.
+  - **OCR → Fleet Vehicle** (we plant): `custom_fleet_card_provider`, `custom_fleet_control_account`, `custom_cost_center` via fixtures (`custom_field.json`). Read when matching a vehicle. Soft-dep guarded by `frappe.db.exists("DocType", "Fleet Vehicle")`.
+  - **fleet_management → Purchase Invoice** (they plant `custom_fleet_vehicle`): we populate it on OCR-built fuel/toll PIs via `frappe.get_meta("Purchase Invoice").has_field("custom_fleet_vehicle")` runtime check, so OCR-generated fleet PIs land in `fleet_management`'s vehicle-level cost reports automatically. When `fleet_management` is not installed the field doesn't exist, the conditional skips, PI insert is unchanged.
 - **doc_events**: PI submit → Completed; PI cancel → reset to Matched
 
 ## Critical Implementation Patterns

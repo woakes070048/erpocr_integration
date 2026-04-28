@@ -2,6 +2,19 @@
 
 All notable changes to the ERPNext OCR Integration app are documented here. Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] — 2026-04-28
+
+Optional `fleet_management` integration: tag fleet PIs with the matched vehicle when both apps are installed.
+
+### Integration
+- `OCRFleetSlip.create_purchase_invoice` now sets `custom_fleet_vehicle` on the created Purchase Invoice when that field exists on the doctype. `fleet_management` plants this field on PI and uses it for vehicle-level cost reports and cost-centre auto-fill. Populating it here means OCR-generated fuel/toll PIs land in those reports without users having to remember to tag the vehicle. Pure runtime feature-detect via `frappe.get_meta(...).has_field(...)` — no import or app dependency on `fleet_management`. When `fleet_management` is not installed the field doesn't exist, the conditional skips, and PI insert is unchanged.
+
+### Operations
+- New manual-trigger backfill script: `erpocr_integration.patches.v1_0_5.backfill_fleet_pi_vehicle.execute`. **Not** registered in `patches.txt` — operators run it via `bench --site <site> execute …` when ready to consolidate historical fleet PIs into vehicle reports. Scoped to `posting_date >= 2026-01-01` (fleet_management data scope) and idempotent (skips PIs already tagged or out of scope). Uses `update_modified=False` so backfilled rows don't clutter the PI audit trail.
+
+### Tests
+- +2 tests covering both branches of the feature-detect: PI dict carries `custom_fleet_vehicle` when the field is present; omits the key cleanly when absent.
+
 ## [1.0.4] — 2026-04-24
 
 Fixes from a dual-model review pass (second-opinion audit surfaced gaps the first review missed).

@@ -144,6 +144,17 @@ class OCRFleetSlip(Document):
 			"items": [pi_item],
 		}
 
+		# Optional fleet_management integration: when that app is installed it
+		# plants `custom_fleet_vehicle` on Purchase Invoice and uses it for
+		# vehicle-level cost reports + cost-centre auto-fill. Populate it here
+		# so OCR-generated fleet PIs land in those reports without users having
+		# to remember to tag the vehicle. Runtime feature-detect only — no
+		# import/dependency on fleet_management.
+		if self.fleet_vehicle and frappe.get_meta("Purchase Invoice").has_field(
+			"custom_fleet_vehicle"
+		):
+			pi_dict["custom_fleet_vehicle"] = self.fleet_vehicle
+
 		# Apply tax template
 		if self.tax_template:
 			template = frappe.get_cached_doc("Purchase Taxes and Charges Template", self.tax_template)

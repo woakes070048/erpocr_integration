@@ -134,6 +134,9 @@ def reset_frappe_mock():
 	_frappe_mock.get_doc.side_effect = None
 	_frappe_mock.get_cached_doc.reset_mock()
 	_frappe_mock.get_cached_doc.side_effect = None
+	# Replace get_meta wholesale — reset_mock doesn't traverse the
+	# .return_value.has_field.return_value chain that v1.0.5 tests configure.
+	_frappe_mock.get_meta = MagicMock()
 	_frappe_mock.log_error.reset_mock()
 	_frappe_mock.enqueue.reset_mock()
 	_frappe_mock.delete_doc.reset_mock()

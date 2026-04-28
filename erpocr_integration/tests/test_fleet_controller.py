@@ -379,6 +379,55 @@ class TestCreatePurchaseInvoice:
 		doc.create_purchase_invoice()
 		assert doc.purchase_invoice == "PI-00002"
 
+	def test_pi_tags_custom_fleet_vehicle_when_field_present(self, mock_frappe):
+		"""When fleet_management is installed (custom_fleet_vehicle field exists on PI),
+		the OCR-built pi_dict includes the fleet vehicle so vehicle-level cost reports
+		pick up these auto-OCR fleet PIs."""
+		mock_pi = MagicMock()
+		mock_pi.name = "PI-00010"
+		mock_pi.items = [MagicMock()]
+		mock_pi.items[0].item_name = "FUEL-001"
+		mock_frappe.get_doc.return_value = mock_pi
+		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None)
+		mock_frappe.get_cached_doc.return_value = _make_settings()
+		mock_frappe.get_all.return_value = []
+		mock_frappe.get_meta.return_value.has_field.return_value = True
+
+		doc = _make_fleet_slip(
+			status="Matched",
+			document_type="Purchase Invoice",
+			fleet_vehicle="VEH-001",
+		)
+		doc.create_purchase_invoice()
+
+		pi_dict = mock_frappe.get_doc.call_args[0][0]
+		assert pi_dict["custom_fleet_vehicle"] == "VEH-001"
+		mock_frappe.get_meta.return_value.has_field.assert_called_with("custom_fleet_vehicle")
+
+	def test_pi_omits_custom_fleet_vehicle_when_field_missing(self, mock_frappe):
+		"""When fleet_management is NOT installed (no custom_fleet_vehicle field),
+		the pi_dict must not carry the key — otherwise PI insert would fail with
+		an unknown field error."""
+		mock_pi = MagicMock()
+		mock_pi.name = "PI-00011"
+		mock_pi.items = [MagicMock()]
+		mock_pi.items[0].item_name = "FUEL-001"
+		mock_frappe.get_doc.return_value = mock_pi
+		mock_frappe.db.get_value.return_value = SimpleNamespace(purchase_invoice=None)
+		mock_frappe.get_cached_doc.return_value = _make_settings()
+		mock_frappe.get_all.return_value = []
+		mock_frappe.get_meta.return_value.has_field.return_value = False
+
+		doc = _make_fleet_slip(
+			status="Matched",
+			document_type="Purchase Invoice",
+			fleet_vehicle="VEH-001",
+		)
+		doc.create_purchase_invoice()
+
+		pi_dict = mock_frappe.get_doc.call_args[0][0]
+		assert "custom_fleet_vehicle" not in pi_dict
+
 
 # ---------------------------------------------------------------------------
 # TestUnlinkDocument
