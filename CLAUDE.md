@@ -12,7 +12,7 @@ Frappe custom app that integrates Gemini 2.5 Flash API with ERPNext for automati
 ### Frappe Custom App (not standalone middleware)
 - Built as a Frappe custom app, NOT a separate FastAPI/Flask service
 - Single install via `bench get-app`, config stored in DocTypes (UI-configurable)
-- Only external dependency: Gemini API (free tier: 15 RPM; Tier 1 pay-as-you-go: 1,000 RPM)
+- Only external dependency: Gemini API (free tier: 10 RPM / 500 RPD; Tier 1 pay-as-you-go: 1,000 RPM)
 
 ### Pipeline Flow
 ```
@@ -134,7 +134,7 @@ def process(raw_payload: str):
 - Retry logic: 5 attempts with 429-specific long backoff (15s/30s/60s/120s) and shorter 5xx backoff (2s/5s/10s/20s)
 - Drive scan staggers enqueue by 5s between files to avoid burst rate limiting
 - Extraction time: 3-15 seconds depending on invoice complexity
-- **Rate limits**: Free tier = 15 RPM / 1,500 RPD (will hit limits with batch uploads). Tier 1 (pay-as-you-go with billing linked) = 1,000 RPM / 10,000+ RPD. Check limits at https://aistudio.google.com/rate-limit
+- **Rate limits**: Free tier = 10 RPM / 500 RPD (will hit limits with batch uploads). Tier 1 (pay-as-you-go with billing linked) = 1,000 RPM / 10,000+ RPD. Check limits at https://aistudio.google.com/rate-limit
 
 ### Document Creation (PI / PR / JE)
 - **Create dropdown** in top menu: Purchase Invoice, Purchase Receipt, Journal Entry — one click sets `document_type`, saves, and creates the draft
@@ -392,7 +392,7 @@ bench restart
 3. Click "Create API key"
 4. Copy the key (starts with `AIza...`)
 
-**Important — Free tier rate limits:** The free tier allows only 15 requests/minute and 1,500 requests/day. Batch uploads via Drive scan or email can easily exceed these limits, causing 429 errors and failed extractions. To avoid this, link a billing account to your Google AI project (Google AI Studio > Settings). This upgrades to Tier 1 (1,000 RPM, 10,000+ RPD) at minimal cost (~$0.0001 per invoice). Check your current limits at https://aistudio.google.com/rate-limit.
+**Important — Free tier rate limits:** The free tier allows only 10 requests/minute and 500 requests/day. Batch uploads via Drive scan or email can easily exceed these limits, causing 429 errors and failed extractions. To avoid this, link a billing account to your Google AI project (Google AI Studio > Settings). This upgrades to Tier 1 (1,000 RPM, 10,000+ RPD) at minimal cost (~$0.0001 per invoice). Check your current limits at https://aistudio.google.com/rate-limit.
 
 ### OCR Settings
 - **Gemini API Key**: Your API key from Google AI Studio

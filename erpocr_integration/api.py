@@ -456,8 +456,8 @@ def _run_matching(ocr_import, header_fields: dict, settings):
 	"""Run supplier and item matching on an OCR Import record.
 
 	Item matching pipeline (precedence order):
-	  1. `match_item` (alias / Item.item_name / Item.name exact match on description)
-	  2. `match_item_by_supplier_part` — Item Supplier lookup (supplier, product_code)
+	  1. `match_item_by_supplier_part` — Item Supplier lookup (supplier, product_code)
+	  2. `match_item` (alias / Item.item_name / Item.name exact match on description)
 	  3. `match_service_item` — pattern-based service mapping
 	  4. `match_item_fuzzy` — difflib similarity on description
 	  5. `default_item` fallback — set in OCR Settings, status "Suggested"
