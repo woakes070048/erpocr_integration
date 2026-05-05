@@ -12,7 +12,7 @@
   <a href="https://github.com/wphamman/erpocr_integration/blob/master/license.txt">
     <img src="https://img.shields.io/badge/license-GPLv3-blue.svg" alt="License: GPLv3">
   </a>
-  <img src="https://img.shields.io/badge/version-1.0.5-blue" alt="Version 1.0.5">
+  <img src="https://img.shields.io/badge/version-1.1.0-blue" alt="Version 1.1.0">
   <img src="https://img.shields.io/badge/ERPNext-v15-blue" alt="ERPNext v15">
   <img src="https://img.shields.io/badge/python-3.10+-blue" alt="Python 3.10+">
 </p>
@@ -28,7 +28,7 @@ A [Frappe](https://frappeframework.com/) custom app that uses Google's **Gemini 
 - **Email Monitoring** — Forward invoice emails to a monitored inbox for automatic processing
 - **Google Drive Scanning** — Drop files into a Drive folder for batch processing every 15 minutes
 - **Multi-Invoice PDFs** — Handles statements/batch scans with multiple invoices per PDF
-- **Smart Matching** — Exact match, fuzzy match (difflib), service item mappings, and a learning alias system
+- **Smart Matching** — Six-tier pipeline: ERPNext `Item Supplier` lookup (supplier-scoped, highest precision) → alias / exact name → service mapping → fuzzy match → optional `default_item` fallback. The Item Supplier table auto-populates as users confirm matches, so the system gets sharper over time without a manual mapping job.
 - **User-Driven Document Creation** — Review extraction, confirm matches, then choose what to create:
   - **Purchase Invoice** — with optional Purchase Order and Purchase Receipt linking
   - **Purchase Receipt** — with optional Purchase Order linking

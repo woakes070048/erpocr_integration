@@ -48,7 +48,8 @@ Fleet Pipeline: Drop fleet slip scan in Drive folder → 15-min poll → Gemini 
 | `erpocr_integration/api.py` | Upload endpoint + `gemini_process()` background job (multi-invoice aware) |
 | `erpocr_integration/tasks/gemini_extract.py` | Gemini API — extracts `invoices[]` array from PDF/image (supports multi-invoice PDFs) |
 | `erpocr_integration/tasks/process_import.py` | Universal processing pipeline — match supplier/items, create PI |
-| `erpocr_integration/tasks/matching.py` | Supplier + item matching (alias → exact → service mapping → fuzzy) |
+| `erpocr_integration/tasks/matching.py` | Supplier + item matching (Item Supplier → alias → exact → service mapping → fuzzy → default_item) |
+| `erpocr_integration/tasks/learn_item_supplier.py` | Background job — appends (supplier, product_code) → item_code rows to ERPNext's `Item Supplier` child table on user confirm (v1.1.0+) |
 | `erpocr_integration/tasks/email_monitor.py` | Email inbox polling — extracts PDF/image attachments from forwarded emails |
 | `erpocr_integration/tasks/drive_integration.py` | Google Drive — upload, download, folder scan (PDF + images), move-to-archive |
 | `erpocr_integration/public/js/ocr_import.js` | Upload button UI with real-time progress updates |
@@ -65,7 +66,7 @@ Fleet Pipeline: Drop fleet slip scan in Drive folder → 15-min poll → Gemini 
 |---|---|---|
 | **OCR Settings** | Single | Gemini API key, email/Drive config, default company/warehouse/tax templates, default item, default credit account |
 | **OCR Import** | Regular | Main staging record — extracted data, match status, document type (PI/PR/JE), links to PO, PR, created PI/PR/JE |
-| **OCR Import Item** | Child Table | Line items — description, qty, rate, matched item_code, PO item ref, PR item ref |
+| **OCR Import Item** | Child Table | Line items — description, supplier `product_code` (v1.1.0+), qty, rate, matched item_code, PO item ref, PR item ref |
 | **OCR Supplier Alias** | Regular | Learning: OCR text → ERPNext Supplier |
 | **OCR Item Alias** | Regular | Learning: OCR text → ERPNext Item |
 | **OCR Service Mapping** | Regular | Pattern → item + GL account + cost center (supplier-specific or generic) |
@@ -146,7 +147,7 @@ def process(raw_payload: str):
 - **doc_events hooks** (hooks.py): `on_submit` → marks OCR Import as Completed; `on_cancel` → clears link + resets to Matched
 - `flags.ignore_mandatory = True` on all created documents (drafts may have incomplete data)
 - Set `bill_date` from OCR invoice_date; only set `due_date` if >= posting_date
-- `default_item` in OCR Settings: used for unmatched PI items (non-stock item, OCR description set as item description)
+- `default_item` in OCR Settings: when set, acts as the matching pipeline's tier 6 fallback (returns "Suggested") AND as the unmatched-line filler at PI creation time. Lets bulk-expense-invoice users skip per-row clicks. Alias / service-mapping / Item Supplier learning are skipped for rows matched to the default_item to avoid polluting those tables with one-shot mappings.
 - **Tax template**: `_build_taxes_from_template()` shared helper handles template validation, company check, tax-inclusive detection, and taxes list building for both PI and PR creation
 
 ### Purchase Order / Purchase Receipt Linking
@@ -194,13 +195,31 @@ def process(raw_payload: str):
 - **Email attachments saved**: email monitor saves PDF/image as Frappe File attachment on the OCR Import, enabling retry even after the email is deleted
 
 ### Matching System
-Matching runs in priority order for both suppliers and items:
-1. **Alias table** (exact match — learned from previous confirmations)
-2. **ERPNext master data** by name (exact match)
-3. **Service mapping** (pattern-based: description substring → item + GL account + cost center)
-4. **Fuzzy matching** (difflib SequenceMatcher, configurable threshold, returns "Suggested" status)
-5. If no match → status "Unmatched", user resolves manually
-6. User confirmations saved as aliases for future auto-matching
+
+**Supplier matching** runs in this order:
+1. **Alias table** (`OCR Supplier Alias` — exact, learned from confirmations)
+2. **ERPNext Supplier** by name (exact)
+3. **Fuzzy matching** (difflib SequenceMatcher, returns "Suggested" status)
+4. If no match → "Unmatched"
+
+**Item matching** runs in this order (highest specificity first; v1.1.0+):
+1. **`Item Supplier` lookup** (`(supplier, supplier_part_no=product_code) → item_code`) — supplier-scoped, deterministic. Multi-hit ambiguity is logged and skipped (falls through). Highest precision because supplier-scoped, runs before global description aliases.
+2. **`OCR Item Alias`** (exact on description — global, not supplier-scoped)
+3. **ERPNext Item** by `item_name` / `item_code` (exact)
+4. **Service mapping** (pattern-based: description substring → item + GL account + cost center)
+5. **Fuzzy matching** (difflib SequenceMatcher, configurable threshold, returns "Suggested" status)
+6. **`default_item` fallback** (only if `OCR Settings.default_item` is configured) — returns "Suggested" so user still confirms and `auto_draft` skips
+7. If no match → "Unmatched"
+
+**Item Supplier learning** (v1.1.0+): when a user confirms an OCR row with `item_code` + `product_code` + parent `supplier` set (and `item_code != default_item`), `OCRImport._enqueue_item_supplier_learning` enqueues `tasks/learn_item_supplier.py` on the `short` queue with `enqueue_after_commit=True`. The job:
+- Sets `frappe.set_user(originating_user)` and checks `has_permission("Item", "write")` — sites that don't grant Item write to OCR Manager get silent skip + log; matching still works without learning.
+- Saves `Item.append("supplier_items", ...)` WITHOUT `ignore_permissions` — so the learning respects the originating user's actual perms.
+- Dedup key: `item_code:supplier:product_code` (collapses concurrent confirms in queue); does NOT replace the in-job DB existence re-check.
+- Try/except around save: failures are logged, never break OCR confirm flow.
+
+**Default-item skip** (v1.1.0+): when `item.item_code == OCR Settings.default_item`, `_save_item_alias` / `_save_service_mapping` / `_enqueue_item_supplier_learning` all skip — those mappings would be redundant with tier 6 fallback and pollute the alias / Item Supplier tables with one-shot rows.
+
+User confirmations saved as `OCR Supplier Alias` / `OCR Item Alias` (description-based) and `Item Supplier` (supplier-product-based).
 
 Service mappings support supplier-specific patterns (higher priority) and generic patterns.
 

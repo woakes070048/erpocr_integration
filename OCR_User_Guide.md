@@ -49,7 +49,7 @@ bench restart
 | **Default Warehouse** | Main receiving warehouse (e.g. "Main Warehouse - TC") |
 | **Default Expense Account** | General expense account for service items |
 | **Default Cost Center** | Main cost center |
-| **Default Item** | A non-stock item for unmatched line items (optional — OCR description becomes the item description) |
+| **Default Item** | A non-stock item used as a fallback when matching fails (optional). When set, unmatched lines auto-populate with this item and `match_status = "Suggested"`, so bulk-expense invoices can be reviewed in one pass without per-row clicks. Stock invoices: override the auto-populated rows back to the real stock code — your selection trains the system (see "How matching learns over time" below). |
 | **Default Credit Account** | Default credit account for Journal Entries (e.g. Accounts Payable, Petty Cash, Bank) |
 
 **Tax Templates**
@@ -142,6 +142,18 @@ For unmatched or incorrect items:
 3. For service/expense items (not stock), also set the **Expense Account** and optionally the **Cost Center**
 4. Change **Match Status** to **Confirmed**
 5. Click **Save**
+
+### How matching learns over time
+
+Each time you save a row with **Match Status = Confirmed**, the system records what you picked so it can match it for you next time:
+
+- **Description-based aliases** — the OCR text "STUD 63.5MM X 2.40" → the ERPNext item you picked. Used for any future supplier sending the same description.
+- **Supplier product code mappings** — if the invoice included the supplier's own product code (e.g. "000060"), that code → ERPNext item is appended to the supplier's `Item Supplier` table on the Item master. Higher precision than description matching because it's scoped to that specific supplier.
+- **Service mappings** — if you also set an Expense Account and Cost Center, the description pattern → item + GL account + cost center is saved.
+
+You don't have to do anything to train the system — it builds up automatically as you process invoices. After a few weeks of confirmations, repeat suppliers should auto-match correctly with no manual edits.
+
+If a row was filled with the **Default Item** (because nothing matched and you've configured one in OCR Settings), no aliases are saved for that row — it's just the catch-all. Override it to a real item if you want the system to learn the mapping.
 
 ---
 
