@@ -388,6 +388,12 @@ class OCRDeliveryNote(Document):
 				_("{0} {1} is submitted. Amend or cancel it first.").format(linked_doctype, linked_name)
 			)
 
+		# Require delete permission on the linked document — prevents a user
+		# with only OCR Delivery Note write from deleting a draft PO/PR they
+		# otherwise couldn't touch.
+		if docstatus is not None:
+			frappe.has_permission(linked_doctype, "delete", linked_name, throw=True)
+
 		# Clear link FIRST via db_set, then delete
 		self.db_set(link_field, "")
 		self.db_set("document_type", "")

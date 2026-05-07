@@ -3,8 +3,10 @@
 Guards against the most likely regression: someone adding this role to another
 doctype's permissions block and quietly widening its read scope. The role must
 appear in exactly two places in the repo — the Role fixture and the OCR Fleet
-Slip doctype's permissions array — and must never grant write/create/delete
-anywhere.
+Slip doctype's permissions array — and must never grant create/delete/submit
+anywhere. Write is granted on OCR Fleet Slip so the reader can resolve
+"Needs Review" records (correct vehicle match, mark No Action) without being
+able to create new fleet slips or delete existing ones.
 """
 
 import glob
@@ -45,18 +47,24 @@ def test_hooks_fixtures_include_role():
 	assert ROLE_NAME in content, "OCR Fleet Slip Reader must appear in hooks.py fixtures filter"
 
 
-def test_fleet_slip_grants_read_only_to_role():
-	"""OCR Fleet Slip must grant read (no write/create/delete) to this role."""
+def test_fleet_slip_grants_read_write_to_role():
+	"""OCR Fleet Slip must grant read + write (no create/delete/submit) to this role.
+
+	Write is needed so the reader can resolve "Needs Review" records — correct
+	a misread vehicle plate, mark a non-fleet slip as No Action. Create / delete
+	stay zero so the reader can't fabricate or destroy fleet slips.
+	"""
 	path = os.path.join(APP_ROOT, "erpnext_ocr", "doctype", "ocr_fleet_slip", "ocr_fleet_slip.json")
 	fleet = _load_json(path)
 	perms = [p for p in fleet.get("permissions", []) if p.get("role") == ROLE_NAME]
 	assert len(perms) == 1, f"Expected exactly one perm row for {ROLE_NAME}, got {len(perms)}"
 	perm = perms[0]
 	assert perm.get("read") == 1
+	assert perm.get("write") == 1
 	assert perm.get("report") == 1
 	assert perm.get("print") == 1
-	# Write surface must all be zero
-	for field in ("write", "create", "delete", "submit", "cancel", "amend"):
+	# Forbidden surface must all be zero
+	for field in ("create", "delete", "submit", "cancel", "amend"):
 		assert perm.get(field, 0) == 0, f"{ROLE_NAME} must not have {field}=1 on OCR Fleet Slip"
 	# Data-exfiltration surface must all be zero
 	assert perm.get("export", 0) == 0

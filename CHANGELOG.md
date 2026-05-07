@@ -2,6 +2,29 @@
 
 All notable changes to the ERPNext OCR Integration app are documented here. Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] — 2026-05-07
+
+Operational polish for the OCR Fleet Slip Reader role and a defence-in-depth fix on `unlink_document` across all three OCR pipelines.
+
+### OCR Fleet Slip Reader gains write permission
+- The role can now resolve "Needs Review" records — correct a misread vehicle plate, mark a non-fleet slip as No Action — without holding the broader OCR Manager role. `create`, `delete`, `submit` stay zero, so the reader can't fabricate or destroy fleet slips.
+- Driven by a real workflow: fleet card slips are a control register reconciled against Wesbank statements; the operations user reviewing them needs to fix Gemini misreads (registration plates on photographed slips are unreliable) but should not be able to create new slips or touch the rest of the OCR pipeline.
+
+### `ignore_user_permissions` on `fleet_vehicle` and `cost_center`
+- Added `"ignore_user_permissions": 1` to the `fleet_vehicle` and `cost_center` Link fields on `OCR Fleet Slip` so depot-scoped User Permissions on those linked DocTypes don't filter the Fleet Slip list. Fleet card slips are company-wide; a depot-scoped user monitoring fleet card usage needs to see every slip regardless of which depot owns the vehicle.
+- Tight scope: only these two fields, only on this DocType. Other Link fields (`expense_account`, `fleet_card_supplier`, `purchase_invoice`, `company`) keep vanilla Frappe UP semantics. Sister app `fleet_management` follows vanilla semantics throughout — this is a deliberate, narrow opt-out.
+
+### Privilege-escalation fix in `unlink_document` (all three pipelines)
+- `unlink_document` on `OCR Fleet Slip`, `OCR Import`, and `OCR Delivery Note` now calls `frappe.has_permission(linked_doctype, "delete", linked_name, throw=True)` before `frappe.delete_doc`. Previously only the parent OCR DocType's write permission was checked — a user with parent-write but no delete permission on the linked Purchase Invoice / Purchase Receipt / Purchase Order / Journal Entry could delete a draft they otherwise couldn't touch. Reachable today via the new Reader-write on OCR Fleet Slip; latent on OCR Import and OCR Delivery Note pending any future narrow role.
+- Caught by external (Codex) review pass on the v1.1.1 changes.
+
+### Tests
+- `test_fleet_slip_reader_role.test_fleet_slip_grants_read_write_to_role` — guard renamed and updated to assert `write=1` while keeping create/delete/submit/cancel/amend/export/email/share locked at 0.
+- `test_fleet_controller.test_blocks_when_user_lacks_pi_delete_permission` — new regression test: simulates Reader-style perms (OCR Fleet Slip write OK, Purchase Invoice delete denied) and asserts `unlink_document` raises and does NOT call `frappe.delete_doc`.
+
+### Operator note
+Sites that already have Custom DocPerm rows on OCR Fleet Slip (typically created as a workaround for the v1.0.x DocPerm shadowing surfaced before this version) should delete those rows after `bench migrate` completes. The built-in DocPerm now matches the intended shape, and any Custom DocPerm rows continue to shadow the built-in array. SQL hint: `DELETE FROM \`tabCustom DocPerm\` WHERE parent = 'OCR Fleet Slip'` — review with `SELECT * FROM \`tabCustom DocPerm\` WHERE parent = 'OCR Fleet Slip'` first.
+
 ## [1.1.0] — 2026-04-28
 
 OCR Import item matching now uses ERPNext's standard `Item Supplier` table, and learns supplier-product mappings as users confirm matches. Defaults adapt to the deploying site's data — no Starpops-specific behaviour.

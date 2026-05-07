@@ -1030,6 +1030,11 @@ class OCRImport(Document):
 				_("{0} {1} is submitted. Amend or cancel it first.").format(linked_doctype, linked_name)
 			)
 
+		# Require delete permission on the linked document — prevents a user with
+		# only OCR Import write from deleting a draft they otherwise couldn't touch.
+		if docstatus is not None:
+			frappe.has_permission(linked_doctype, "delete", linked_name, throw=True)
+
 		# Clear the link on this OCR Import FIRST via db_set — this removes
 		# the incoming Link reference so frappe.delete_doc won't be blocked.
 		# Set status to Pending (neutral) so _update_status() will recompute

@@ -235,6 +235,12 @@ class OCRFleetSlip(Document):
 				_("{0} {1} is submitted. Amend or cancel it first.").format(linked_doctype, linked_name)
 			)
 
+		# Require delete permission on the linked document itself — prevents a user
+		# with only OCR Fleet Slip write (e.g. OCR Fleet Slip Reader) from deleting
+		# a draft Purchase Invoice they otherwise couldn't touch.
+		if docstatus is not None:
+			frappe.has_permission(linked_doctype, "delete", linked_name, throw=True)
+
 		# Clear link FIRST via db_set (Frappe blocks deletion of docs with incoming Link refs)
 		self.db_set(link_field, "")
 		self.db_set("document_type", "")

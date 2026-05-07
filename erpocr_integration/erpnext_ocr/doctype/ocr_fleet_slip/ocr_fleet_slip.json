@@ -186,6 +186,7 @@
 			"fieldtype": "Link",
 			"label": "Fleet Vehicle",
 			"options": "Fleet Vehicle",
+			"ignore_user_permissions": 1,
 			"description": "Matched from vehicle registration (requires fleet_management app)"
 		},
 		{
@@ -226,6 +227,7 @@
 			"fieldtype": "Link",
 			"label": "Cost Center",
 			"options": "Cost Center",
+			"ignore_user_permissions": 1,
 			"description": "Pulled from Fleet Vehicle config or manually set"
 		},
 		{
@@ -429,7 +431,7 @@
 			"export": 0,
 			"email": 0,
 			"share": 0,
-			"write": 0,
+			"write": 1,
 			"create": 0,
 			"delete": 0,
 			"permlevel": 0

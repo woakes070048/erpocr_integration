@@ -491,6 +491,30 @@ class TestUnlinkDocument:
 		with pytest.raises(Exception):
 			doc.unlink_document()
 
+	def test_blocks_when_user_lacks_pi_delete_permission(self, mock_frappe):
+		"""Reader role has OCR Fleet Slip write but not Purchase Invoice delete —
+		must NOT be able to unlink (which would delete the draft PI)."""
+		mock_frappe.db.get_value.return_value = 0  # PI is draft
+
+		def has_permission_side_effect(doctype, ptype, *args, **kwargs):
+			# OCR Fleet Slip write OK; Purchase Invoice delete denied
+			if doctype == "OCR Fleet Slip" and ptype == "write":
+				return True
+			if doctype == "Purchase Invoice" and ptype == "delete":
+				if kwargs.get("throw"):
+					raise Exception("Insufficient Permission for Purchase Invoice")
+				return False
+			return True
+
+		mock_frappe.has_permission.side_effect = has_permission_side_effect
+		doc = _make_fleet_slip(status="Draft Created", purchase_invoice="PI-00001")
+
+		with pytest.raises(Exception):
+			doc.unlink_document()
+
+		# PI must NOT have been deleted
+		mock_frappe.delete_doc.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # TestMarkNoAction
