@@ -141,6 +141,9 @@ Yes. Each file is processed separately.
 **What if I accidentally scan something that isn't a fuel or toll slip?**
 The system will flag it as "Other" with an orange warning. The accounting team will review it and mark it as "No Action Required" if it's not a valid business expense (e.g., personal purchases at a fuel station).
 
+**What if a fuel slip was paid with a personal or company credit card (not a fleet card)?**
+The accounting team uses the **Actions → Move to Invoice Pipeline** button on the slip. This re-runs the same scan through the regular invoice flow (which matches the actual supplier on the slip — Engen, Shell, etc.), creates a new OCR Import for it, and marks the original fleet slip as "No Action — moved to invoice pipeline". Drivers don't need to do anything different — just keep dropping all fuel slips in the same folder; the team sorts out the routing.
+
 **Where does the original file go?**
 After processing, the file is moved from the scan folder to an archive folder. There's a "View Original Scan" link on each OCR Fleet Slip record in ERPNext.
 

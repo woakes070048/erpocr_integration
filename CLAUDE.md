@@ -57,7 +57,7 @@ Fleet Pipeline: Drop fleet slip scan in Drive folder → 15-min poll → Gemini 
 | `erpocr_integration/dn_api.py` | DN background processing (`dn_gemini_process`), PO matching, doc_event hooks, retry |
 | `erpocr_integration/erpnext_ocr/doctype/ocr_delivery_note/ocr_delivery_note.py` | OCR DN controller — create_purchase_order(), create_purchase_receipt(), unlink, no_action |
 | `erpocr_integration/public/js/ocr_delivery_note.js` | DN client: PO matching dialogs (qty-focused), Create dropdown (PO/PR), real-time status |
-| `erpocr_integration/fleet_api.py` | Fleet background processing (`fleet_gemini_process`), vehicle matching, doc_event hooks, retry |
+| `erpocr_integration/fleet_api.py` | Fleet background processing (`fleet_gemini_process`), vehicle matching (exact + normalized + fuzzy `_fuzzy_match_vehicle`), doc_event hooks, retry, `route_to_invoice_pipeline` (re-route mis-folder slips to invoice pipeline) |
 | `erpocr_integration/erpnext_ocr/doctype/ocr_fleet_slip/ocr_fleet_slip.py` | OCR Fleet Slip controller — create_purchase_invoice(), unlink, no_action, status workflow |
 | `erpocr_integration/public/js/ocr_fleet_slip.js` | Fleet client: Create PI button, vehicle config display, status intro, unauthorized warning |
 
