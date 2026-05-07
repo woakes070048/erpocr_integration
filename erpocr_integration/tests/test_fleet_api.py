@@ -422,6 +422,109 @@ class TestMatchVehicle:
 		assert doc.fleet_vehicle == "VEH-003"
 		assert doc.vehicle_match_status == "Suggested"
 
+	def test_similarity_fuzzy_match_single_char_misread(self, mock_frappe):
+		"""Single-character Gemini misread (CXX5792 instead of CXX579L) → Suggested."""
+		mock_frappe.db.exists.return_value = True
+		mock_frappe.db.get_value.return_value = None
+		mock_frappe.get_all.return_value = [
+			_NS(
+				name="VEH-001",
+				registration="CXX 579 L",
+				custom_fleet_card_provider="FNBF001",
+				custom_fleet_control_account="",
+				custom_cost_center="",
+			),
+		]
+		settings = _make_settings()
+		doc = MockFleetSlip(vehicle_registration="CXX5792")  # L misread as 2
+		_match_vehicle(doc, settings)
+		assert doc.fleet_vehicle == "VEH-001"
+		assert doc.vehicle_match_status == "Suggested"
+
+	def test_similarity_fuzzy_blocks_ambiguous_match(self, mock_frappe):
+		"""Two vehicles within 0.05 similarity → no match (ambiguity guard)."""
+		mock_frappe.db.exists.return_value = True
+		mock_frappe.db.get_value.return_value = None
+		mock_frappe.get_all.return_value = [
+			_NS(
+				name="VEH-001",
+				registration="CXX 579 L",
+				custom_fleet_card_provider="",
+				custom_fleet_control_account="",
+				custom_cost_center="",
+			),
+			_NS(
+				name="VEH-002",
+				registration="CXX 579 C",  # Differs from VEH-001 only on last char
+				custom_fleet_card_provider="",
+				custom_fleet_control_account="",
+				custom_cost_center="",
+			),
+		]
+		settings = _make_settings()
+		doc = MockFleetSlip(vehicle_registration="CXX5790")  # Last char ambiguous
+		_match_vehicle(doc, settings)
+		# Both candidates score equally — must NOT pick one. Fall through.
+		assert doc.fleet_vehicle == ""
+		assert doc.vehicle_match_status == "Unmatched"
+
+	def test_similarity_fuzzy_blocks_below_threshold(self, mock_frappe):
+		"""Multi-character misread (BVC558L vs CXX579L) → no match."""
+		mock_frappe.db.exists.return_value = True
+		mock_frappe.db.get_value.return_value = None
+		mock_frappe.get_all.return_value = [
+			_NS(
+				name="VEH-001",
+				registration="CXX 579 L",
+				custom_fleet_card_provider="",
+				custom_fleet_control_account="",
+				custom_cost_center="",
+			),
+		]
+		settings = _make_settings()
+		doc = MockFleetSlip(vehicle_registration="BVC 558 L")  # Different vehicle
+		_match_vehicle(doc, settings)
+		assert doc.fleet_vehicle == ""
+		assert doc.vehicle_match_status == "Unmatched"
+
+	def test_similarity_fuzzy_blocks_short_input(self, mock_frappe):
+		"""Inputs under 4 chars are too short for safe fuzzy matching."""
+		mock_frappe.db.exists.return_value = True
+		mock_frappe.db.get_value.return_value = None
+		mock_frappe.get_all.return_value = [
+			_NS(
+				name="VEH-001",
+				registration="CXX 579 L",
+				custom_fleet_card_provider="",
+				custom_fleet_control_account="",
+				custom_cost_center="",
+			),
+		]
+		settings = _make_settings()
+		doc = MockFleetSlip(vehicle_registration="CXX")
+		_match_vehicle(doc, settings)
+		assert doc.fleet_vehicle == ""
+		assert doc.vehicle_match_status == "Unmatched"
+
+	def test_similarity_fuzzy_skips_length_mismatch(self, mock_frappe):
+		"""Vehicles whose normalized length differs by >2 are skipped."""
+		mock_frappe.db.exists.return_value = True
+		mock_frappe.db.get_value.return_value = None
+		mock_frappe.get_all.return_value = [
+			_NS(
+				name="VEH-LONG",
+				registration="ABCDEFGHIJ123",  # 13 chars normalized
+				custom_fleet_card_provider="",
+				custom_fleet_control_account="",
+				custom_cost_center="",
+			),
+		]
+		settings = _make_settings()
+		doc = MockFleetSlip(vehicle_registration="ABCDEFG")  # 7 chars
+		_match_vehicle(doc, settings)
+		# Length differs by 6 → skipped, no match
+		assert doc.fleet_vehicle == ""
+
 
 # ---------------------------------------------------------------------------
 # TestApplyVehicleConfig

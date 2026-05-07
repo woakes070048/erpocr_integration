@@ -18,9 +18,18 @@ Operational polish for the OCR Fleet Slip Reader role and a defence-in-depth fix
 - `unlink_document` on `OCR Fleet Slip`, `OCR Import`, and `OCR Delivery Note` now calls `frappe.has_permission(linked_doctype, "delete", linked_name, throw=True)` before `frappe.delete_doc`. Previously only the parent OCR DocType's write permission was checked — a user with parent-write but no delete permission on the linked Purchase Invoice / Purchase Receipt / Purchase Order / Journal Entry could delete a draft they otherwise couldn't touch. Reachable today via the new Reader-write on OCR Fleet Slip; latent on OCR Import and OCR Delivery Note pending any future narrow role.
 - Caught by external (Codex) review pass on the v1.1.1 changes.
 
+### Vehicle plate fuzzy matching
+- `_match_vehicle` gains a third tier — `_fuzzy_match_vehicle` uses `difflib.SequenceMatcher` to rescue Gemini character-level misreads on photographed registration plates (L↔1, 5↔S, X↔N, etc.). Threshold 0.78, length-difference cap of 2, and a 0.05 ambiguity-band guard so the matcher never silently picks between two near-equal candidates. Status set to "Suggested" — user still confirms.
+- Real impact from this morning's prod batch: 19 fleet slips arrived, 7 exact-matched, 12 went to Needs Review with character misreads of one fleet vehicle's plate (CXX 579 L → CMX579L, CXX5792, CXX579C, CXX529L, etc.). With this tier the four single-character misreads auto-suggest the correct vehicle; the worse misreads (BVC 558 L is a different vehicle, CXXS79C has two substitutions) correctly stay unmatched.
+
 ### Tests
 - `test_fleet_slip_reader_role.test_fleet_slip_grants_read_write_to_role` — guard renamed and updated to assert `write=1` while keeping create/delete/submit/cancel/amend/export/email/share locked at 0.
 - `test_fleet_controller.test_blocks_when_user_lacks_pi_delete_permission` — new regression test: simulates Reader-style perms (OCR Fleet Slip write OK, Purchase Invoice delete denied) and asserts `unlink_document` raises and does NOT call `frappe.delete_doc`.
+- `test_workflow_integration.test_blocks_when_user_lacks_linked_doc_delete_permission` and `test_dn_controller.test_blocks_when_user_lacks_linked_doc_delete_permission` — same regression shape applied to OCR Import and OCR Delivery Note unlink paths.
+- `test_fleet_api.test_similarity_fuzzy_*` — five new tests covering single-char rescue, ambiguity guard, threshold cutoff, short-input guard, and length-mismatch skip.
+
+### Known issues
+- Cross-Shared-Drive archive (fleet, DN, invoice scan folders → archive on a separate Shared Drive) silently fails to move files after extraction. Files stay in the scan folder; `drive_file_id` dedup prevents re-processing on the next scheduler tick, so it's noisy not broken. Suspected cause: Drive API folder search in `_get_or_create_folder` lacks `corpora='allDrives'` when archive is on a different Shared Drive. Deferred — fix needs live Drive testing not available in this release window.
 
 ### Operator note
 Sites that already have Custom DocPerm rows on OCR Fleet Slip (typically created as a workaround for the v1.0.x DocPerm shadowing surfaced before this version) should delete those rows after `bench migrate` completes. The built-in DocPerm now matches the intended shape, and any Custom DocPerm rows continue to shadow the built-in array. SQL hint: `DELETE FROM \`tabCustom DocPerm\` WHERE parent = 'OCR Fleet Slip'` — review with `SELECT * FROM \`tabCustom DocPerm\` WHERE parent = 'OCR Fleet Slip'` first.

@@ -497,6 +497,27 @@ class TestUnlinkDocument:
 		with pytest.raises(Exception):
 			doc.unlink_document()
 
+	def test_blocks_when_user_lacks_linked_doc_delete_permission(self, mock_frappe):
+		"""User with OCR DN write but no Purchase Order delete must NOT
+		be able to unlink (which would delete the linked draft PO)."""
+		mock_frappe.db.get_value.return_value = 0  # PO is draft
+
+		def has_permission_side_effect(doctype, ptype, *args, **kwargs):
+			if doctype == "OCR Delivery Note" and ptype == "write":
+				return True
+			if doctype == "Purchase Order" and ptype == "delete":
+				if kwargs.get("throw"):
+					raise Exception("Insufficient Permission for Purchase Order")
+				return False
+			return True
+
+		mock_frappe.has_permission.side_effect = has_permission_side_effect
+		doc = _make_ocr_dn(status="Draft Created", purchase_order_result="PO-00001")
+
+		with pytest.raises(Exception):
+			doc.unlink_document()
+		mock_frappe.delete_doc.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # TestMarkNoAction

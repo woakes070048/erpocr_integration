@@ -195,7 +195,7 @@ def _match_vehicle(ocr_fleet, settings):
 		_apply_vehicle_config(ocr_fleet, vehicle, settings)
 		return
 
-	# Fuzzy match: normalize by stripping spaces, hyphens, underscores
+	# Fuzzy match tier 1: normalize by stripping spaces, hyphens, underscores
 	normalized_reg = reg.replace(" ", "").replace("-", "").replace("_", "")
 
 	all_vehicles = frappe.get_all(
@@ -218,7 +218,66 @@ def _match_vehicle(ocr_fleet, settings):
 			_apply_vehicle_config(ocr_fleet, v, settings)
 			return
 
+	# Fuzzy match tier 2: similarity score (catches Gemini character misreads
+	# on photographed plates — L/1, 5/S, X/N, 0/O, etc.). High threshold +
+	# unambiguous-best-match guard to avoid posting expenses to the wrong vehicle.
+	candidate = _fuzzy_match_vehicle(normalized_reg, all_vehicles)
+	if candidate:
+		ocr_fleet.fleet_vehicle = candidate.name
+		ocr_fleet.vehicle_match_status = "Suggested"
+		_apply_vehicle_config(ocr_fleet, candidate, settings)
+		return
+
 	_clear_vehicle_links(ocr_fleet)
+
+
+def _fuzzy_match_vehicle(normalized_reg: str, all_vehicles: list, threshold: float = 0.78):
+	"""
+	Score each Fleet Vehicle's normalized registration against the OCR'd one
+	using difflib.SequenceMatcher. Return the unambiguous best match.
+
+	Args:
+		normalized_reg: OCR registration, already stripped + uppercased
+		all_vehicles: list of Fleet Vehicle dicts (from caller)
+		threshold: minimum similarity ratio (0-1) for the best match
+
+	Returns:
+		Vehicle dict on a confident, unambiguous match; None otherwise.
+
+	Ambiguity guard: if the second-best score is within 0.05 of the best,
+	the match is too risky (e.g. CXX579L vs CXX579C both look plausible).
+	Posting an expense to the wrong vehicle is worse than asking the user
+	to pick — fall through to manual review.
+
+	Length guard: skip vehicles whose normalized length differs by >2 from
+	the OCR — different plate, not a misread.
+	"""
+	from difflib import SequenceMatcher
+
+	if not normalized_reg or len(normalized_reg) < 4:
+		return None
+
+	scores = []
+	for v in all_vehicles:
+		v_normalized = (v.registration or "").replace(" ", "").replace("-", "").replace("_", "").upper()
+		if not v_normalized or abs(len(v_normalized) - len(normalized_reg)) > 2:
+			continue
+		ratio = SequenceMatcher(None, normalized_reg, v_normalized).ratio()
+		scores.append((ratio, v))
+
+	if not scores:
+		return None
+
+	scores.sort(key=lambda x: x[0], reverse=True)
+	best_ratio, best_vehicle = scores[0]
+	if best_ratio < threshold:
+		return None
+
+	# Ambiguity guard: second-best within 0.05 → too close to call
+	if len(scores) > 1 and scores[1][0] >= best_ratio - 0.05:
+		return None
+
+	return best_vehicle
 
 
 def _apply_vehicle_config(ocr_fleet, vehicle, settings):
