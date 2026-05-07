@@ -426,6 +426,120 @@ def retry_fleet_extraction(ocr_fleet_name: str):
 	frappe.msgprint(_("Retry extraction queued. Please wait a moment and refresh."), indicator="blue")
 
 
+@frappe.whitelist(methods=["POST"])
+def route_to_invoice_pipeline(ocr_fleet_name: str):
+	"""
+	Re-route a fleet slip scan into the regular OCR Import (invoice) pipeline.
+
+	Used when a driver mistakenly drops a non-fleet-card slip (paid with a
+	personal or company credit card) into the fleet Drive folder. The fleet
+	pipeline assumes a fleet card supplier; for these slips we want the
+	normal supplier-matching flow.
+
+	Flow:
+	  1. Read the original scan attachment from the fleet slip.
+	  2. Create a new OCR Import placeholder + copy the scan to it.
+	  3. Enqueue the standard `gemini_process` job (invoice extraction).
+	  4. Mark the OCR Fleet Slip as "No Action" with a reason that links
+	     to the new OCR Import.
+
+	Permission posture: requires write on the OCR Fleet Slip AND create on
+	OCR Import. A narrow Reader role (write on Fleet Slip only) cannot use
+	this — they'd open a creation surface they shouldn't have.
+
+	Returns: name of the newly created OCR Import (for client redirect).
+	"""
+	if not frappe.has_permission("OCR Fleet Slip", "write", ocr_fleet_name):
+		frappe.throw(_("You don't have permission to modify this fleet slip."))
+	if not frappe.has_permission("OCR Import", "create"):
+		frappe.throw(_("You don't have permission to create OCR Imports."))
+
+	ocr_fleet = frappe.get_doc("OCR Fleet Slip", ocr_fleet_name)
+
+	# Guard: only allow re-routing when the slip is in a reviewable state.
+	# Completed / Draft Created already have downstream documents and shouldn't
+	# be re-routed; No Action records are already terminal.
+	if ocr_fleet.status in ("Completed", "Draft Created", "No Action"):
+		frappe.throw(
+			_("Cannot re-route a fleet slip in '{0}' status.").format(ocr_fleet.status)
+		)
+
+	# Find the original scan attachment
+	files = frappe.get_all(
+		"File",
+		filters={
+			"attached_to_doctype": "OCR Fleet Slip",
+			"attached_to_name": ocr_fleet_name,
+			"is_private": 1,
+		},
+		fields=["name", "file_name"],
+		limit=1,
+	)
+	if not files:
+		frappe.throw(_("No scan attachment found on this fleet slip."))
+
+	source_file = frappe.get_doc("File", files[0].name)
+	file_content = source_file.get_content()
+	filename = source_file.file_name
+	mime_type = _mime_type_from_filename(filename)
+
+	# Create OCR Import placeholder
+	ocr_import = frappe.get_doc(
+		{
+			"doctype": "OCR Import",
+			"status": "Pending",
+			"source_type": "Gemini Drive Scan",
+			"uploaded_by": frappe.session.user,
+			"company": ocr_fleet.company,
+		}
+	)
+	ocr_import.insert(ignore_permissions=False)
+
+	# Copy the scan to the new OCR Import as a private attachment
+	frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": filename,
+			"content": file_content,
+			"attached_to_doctype": "OCR Import",
+			"attached_to_name": ocr_import.name,
+			"is_private": 1,
+		}
+	).insert(ignore_permissions=True)
+	frappe.db.commit()  # nosemgrep
+
+	# Enqueue invoice extraction
+	try:
+		frappe.enqueue(
+			"erpocr_integration.api.gemini_process",
+			queue="long",
+			timeout=300,
+			pdf_content=file_content,
+			filename=filename,
+			ocr_import_name=ocr_import.name,
+			source_type="Gemini Drive Scan",
+			uploaded_by=frappe.session.user,
+			mime_type=mime_type,
+			queue_position=0,
+		)
+	except Exception:
+		frappe.db.set_value("OCR Import", ocr_import.name, "status", "Error")
+		frappe.db.commit()  # nosemgrep
+		frappe.log_error(
+			title="Fleet Re-route Enqueue Error",
+			message=f"Failed to enqueue re-routed extraction for {ocr_fleet_name} → {ocr_import.name}\n{frappe.get_traceback()}",
+		)
+		frappe.throw(_("Failed to start invoice extraction. The OCR Import was created but processing did not start."))
+
+	# Mark the original fleet slip as No Action with a reason that points to the new record
+	ocr_fleet.status = "No Action"
+	ocr_fleet.no_action_reason = _("Moved to invoice pipeline as {0}").format(ocr_import.name)
+	ocr_fleet.save(ignore_permissions=False)
+	frappe.db.commit()  # nosemgrep
+
+	return ocr_import.name
+
+
 def _mime_type_from_filename(filename: str) -> str:
 	"""Determine MIME type from filename extension."""
 	ext = ("." + filename.rsplit(".", 1)[-1].lower()) if "." in filename else ""

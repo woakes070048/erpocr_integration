@@ -12,6 +12,7 @@ from erpocr_integration.fleet_api import (
 	_run_fleet_matching,
 	fleet_gemini_process,
 	retry_fleet_extraction,
+	route_to_invoice_pipeline,
 	update_ocr_fleet_on_cancel,
 	update_ocr_fleet_on_submit,
 )
@@ -706,6 +707,136 @@ class TestRetryFleetExtraction:
 		mock_frappe.has_permission.return_value = False
 		with pytest.raises(Exception):
 			retry_fleet_extraction("OCR-FS-00001")
+
+
+# ---------------------------------------------------------------------------
+# TestRouteToInvoicePipeline
+# ---------------------------------------------------------------------------
+
+
+class TestRouteToInvoicePipeline:
+	def _setup_happy_path(self, mock_frappe, fleet_status="Needs Review"):
+		"""Common setup: a fleet slip with one private attachment, all perms granted."""
+		mock_fleet = MockFleetSlip(status=fleet_status, company="Star Pops")
+		mock_fleet.save = MagicMock()
+
+		mock_source_file = MagicMock()
+		mock_source_file.get_content.return_value = b"%PDF-1.4 fleet scan content"
+		mock_source_file.file_name = "fleet_scan_001.pdf"
+
+		mock_new_import = MagicMock()
+		mock_new_import.name = "OCR-IMP-NEW"
+		mock_new_import.insert = MagicMock()
+
+		mock_new_file = MagicMock()
+		mock_new_file.insert = MagicMock()
+
+		def get_doc_side_effect(arg, name=None):
+			# String form: get_doc("OCR Fleet Slip", name) and get_doc("File", name)
+			if isinstance(arg, str):
+				if arg == "OCR Fleet Slip":
+					return mock_fleet
+				if arg == "File":
+					return mock_source_file
+				return MagicMock()
+			# Dict form: get_doc({"doctype": "..."}) — used to create new docs
+			doctype = arg.get("doctype")
+			if doctype == "OCR Import":
+				return mock_new_import
+			if doctype == "File":
+				return mock_new_file
+			return MagicMock()
+
+		mock_frappe.get_doc.side_effect = get_doc_side_effect
+		mock_frappe.get_all.return_value = [
+			SimpleNamespace(name="FILE-SRC", file_name="fleet_scan_001.pdf")
+		]
+		mock_frappe.has_permission = MagicMock(return_value=True)
+		mock_frappe.session.user = "danell@starpops.co.za"
+
+		return mock_fleet, mock_new_import, mock_new_file
+
+	def test_happy_path_creates_import_and_marks_no_action(self, mock_frappe):
+		"""Re-route copies scan, enqueues invoice extraction, marks slip No Action."""
+		mock_fleet, mock_new_import, _ = self._setup_happy_path(mock_frappe)
+
+		result = route_to_invoice_pipeline("OCR-FS-00001")
+
+		# Returns the new OCR Import name for redirect
+		assert result == "OCR-IMP-NEW"
+
+		# New OCR Import was inserted
+		mock_new_import.insert.assert_called_once()
+
+		# gemini_process was enqueued for invoice extraction
+		mock_frappe.enqueue.assert_called_once()
+		enqueue_call = mock_frappe.enqueue.call_args
+		assert enqueue_call.args[0] == "erpocr_integration.api.gemini_process"
+		assert enqueue_call.kwargs["ocr_import_name"] == "OCR-IMP-NEW"
+		assert enqueue_call.kwargs["filename"] == "fleet_scan_001.pdf"
+
+		# Original fleet slip marked No Action with reason linking to new import
+		assert mock_fleet.status == "No Action"
+		assert "OCR-IMP-NEW" in mock_fleet.no_action_reason
+		mock_fleet.save.assert_called_once()
+
+	def test_blocks_terminal_statuses(self, mock_frappe):
+		"""Cannot re-route from Completed / Draft Created / No Action."""
+		for terminal_status in ("Completed", "Draft Created", "No Action"):
+			self._setup_happy_path(mock_frappe, fleet_status=terminal_status)
+			with pytest.raises(Exception):
+				route_to_invoice_pipeline("OCR-FS-00001")
+
+	def test_blocks_no_attachment(self, mock_frappe):
+		"""Cannot re-route a slip that has no scan attachment."""
+		self._setup_happy_path(mock_frappe)
+		mock_frappe.get_all.return_value = []  # No attachments
+
+		with pytest.raises(Exception):
+			route_to_invoice_pipeline("OCR-FS-00001")
+
+	def test_blocks_when_lacks_fleet_slip_write(self, mock_frappe):
+		"""User without OCR Fleet Slip write cannot re-route."""
+
+		def has_perm_side_effect(doctype, ptype, *args, **kwargs):
+			if doctype == "OCR Fleet Slip" and ptype == "write":
+				return False
+			return True
+
+		mock_frappe.has_permission = MagicMock(side_effect=has_perm_side_effect)
+
+		with pytest.raises(Exception):
+			route_to_invoice_pipeline("OCR-FS-00001")
+
+	def test_blocks_when_lacks_ocr_import_create(self, mock_frappe):
+		"""Reader role (Fleet Slip write only, no OCR Import create) cannot re-route."""
+
+		def has_perm_side_effect(doctype, ptype, *args, **kwargs):
+			if doctype == "OCR Fleet Slip" and ptype == "write":
+				return True
+			if doctype == "OCR Import" and ptype == "create":
+				return False
+			return True
+
+		mock_frappe.has_permission = MagicMock(side_effect=has_perm_side_effect)
+
+		with pytest.raises(Exception):
+			route_to_invoice_pipeline("OCR-FS-00001")
+
+	def test_enqueue_failure_marks_import_error(self, mock_frappe):
+		"""If enqueue fails, the new OCR Import is marked Error so it doesn't sit Pending."""
+		self._setup_happy_path(mock_frappe)
+		mock_frappe.enqueue.side_effect = Exception("redis down")
+
+		with pytest.raises(Exception):
+			route_to_invoice_pipeline("OCR-FS-00001")
+
+		# OCR Import status was rolled forward to Error before throw
+		set_value_calls = [c.args for c in mock_frappe.db.set_value.call_args_list]
+		assert any(
+			args[0] == "OCR Import" and args[1] == "OCR-IMP-NEW" and args[2] == "status" and args[3] == "Error"
+			for args in set_value_calls
+		)
 
 
 # ---------------------------------------------------------------------------

@@ -471,4 +471,5 @@ bench restart
 5. Accounts team reviews OCR Fleet Slip — verifies vehicle, amounts, supplier
 6. Click **Create → Purchase Invoice** (supplier from vehicle config or default)
 7. **(Unauthorized)** slip_type=Other → orange warning → **Actions → No Action Required** with reason
-8. Submit created PI in ERPNext → OCR Fleet Slip status automatically moves to Completed
+8. **(Wrong folder — non-fleet-card slip)** Click **Actions → Move to Invoice Pipeline** to re-process the same scan as a regular invoice. Creates a new OCR Import, re-runs Gemini extraction with the invoice prompt, and marks the original fleet slip as No Action with a reference to the new OCR Import. Used when a driver pays for fuel with a personal/company credit card (not a fleet card) and drops the slip in the fleet Drive folder by mistake.
+9. Submit created PI in ERPNext → OCR Fleet Slip status automatically moves to Completed

@@ -90,6 +90,33 @@ frappe.ui.form.on('OCR Fleet Slip', {
 			});
 		}
 
+		// Move to Invoice Pipeline — for slips that aren't fleet card transactions
+		// (e.g. fuel paid with a personal card, dropped in the wrong Drive folder)
+		if (!frm.is_new() && !['Completed', 'Draft Created', 'No Action'].includes(frm.doc.status)) {
+			frm.add_custom_button(__('Move to Invoice Pipeline'), function() {
+				frappe.confirm(
+					__('This slip will be re-processed as a regular invoice (not a fleet card transaction). The fleet slip will be marked as No Action and a new OCR Import will be created. Continue?'),
+					function() {
+						frappe.call({
+							method: 'erpocr_integration.fleet_api.route_to_invoice_pipeline',
+							args: { ocr_fleet_name: frm.doc.name },
+							callback: function(r) {
+								if (!r.exc && r.message) {
+									frappe.show_alert({
+										message: __('Created OCR Import {0}. Redirecting...', [r.message]),
+										indicator: 'green'
+									});
+									setTimeout(function() {
+										frappe.set_route('Form', 'OCR Import', r.message);
+									}, 1500);
+								}
+							}
+						});
+					}
+				);
+			}, __('Actions'));
+		}
+
 		// View Original Scan
 		if (!frm.is_new() && frm.doc.drive_link) {
 			frm.add_custom_button(__('View Original Scan'), function() {
