@@ -14,7 +14,6 @@ Handles:
 """
 
 import json
-import time
 
 import frappe
 from frappe import _
@@ -25,7 +24,6 @@ def fleet_gemini_process(
 	filename: str,
 	ocr_fleet_name: str,
 	mime_type: str = "application/pdf",
-	queue_position: int = 0,
 ):
 	"""
 	Background job: extract fleet slip data via Gemini and populate the OCR Fleet Slip.
@@ -35,11 +33,6 @@ def fleet_gemini_process(
 	frappe.set_user("Administrator")
 
 	try:
-		# Rate-limit stagger (capped at 240s)
-		if queue_position > 0:
-			stagger = min(queue_position * 5, 240)
-			time.sleep(stagger)
-
 		frappe.db.set_value("OCR Fleet Slip", ocr_fleet_name, "status", "Pending")
 		frappe.db.commit()  # nosemgrep
 
@@ -418,12 +411,11 @@ def retry_fleet_extraction(ocr_fleet_name: str):
 		frappe.enqueue(
 			"erpocr_integration.fleet_api.fleet_gemini_process",
 			queue="long",
-			timeout=300,
+			timeout=600,
 			file_content=file_content,
 			filename=filename,
 			ocr_fleet_name=ocr_fleet_name,
 			mime_type=mime_type,
-			queue_position=0,
 		)
 	except Exception:
 		# Enqueue failed — revert to Error so it doesn't sit as stale Pending
@@ -523,14 +515,13 @@ def route_to_invoice_pipeline(ocr_fleet_name: str):
 		frappe.enqueue(
 			"erpocr_integration.api.gemini_process",
 			queue="long",
-			timeout=300,
+			timeout=600,
 			pdf_content=file_content,
 			filename=filename,
 			ocr_import_name=ocr_import.name,
 			source_type="Gemini Drive Scan",
 			uploaded_by=frappe.session.user,
 			mime_type=mime_type,
-			queue_position=0,
 		)
 	except Exception:
 		frappe.db.set_value("OCR Import", ocr_import.name, "status", "Error")

@@ -12,7 +12,7 @@
   <a href="https://github.com/wphamman/erpocr_integration/blob/master/license.txt">
     <img src="https://img.shields.io/badge/license-GPLv3-blue.svg" alt="License: GPLv3">
   </a>
-  <img src="https://img.shields.io/badge/version-1.1.1-blue" alt="Version 1.1.1">
+  <img src="https://img.shields.io/badge/version-1.1.2-blue" alt="Version 1.1.2">
   <img src="https://img.shields.io/badge/ERPNext-v15-blue" alt="ERPNext v15">
   <img src="https://img.shields.io/badge/python-3.10+-blue" alt="Python 3.10+">
 </p>
@@ -69,8 +69,10 @@ No documents are created automatically — every decision is made by the user.
 
 - ERPNext v15+ (Frappe v15+)
 - Python 3.10+
-- Gemini API key ([free tier](https://aistudio.google.com/apikey): 15 requests/minute)
+- Gemini API key ([free tier](https://aistudio.google.com/apikey): 10 RPM / 500 RPD; Tier 1 with billing: 1,000 RPM / 10,000+ RPD)
 - Google Cloud service account (optional, for Drive integration)
+
+> ⚠️ **Billing mode matters.** New Google AI Studio accounts default to **Tier 1 · Prepay** when billing is linked — you must top up credits up front, and when they hit zero the API returns `429 RESOURCE_EXHAUSTED` ("Your prepayment credits are depleted") regardless of rate. This looks identical to a rate-limit error in the logs but the cause is funding. To avoid surprise stoppages, switch the project to **pay-as-you-go (post-pay)** in Google AI Studio → Billing, or set a calendar reminder to top up. Check active tier at https://aistudio.google.com/rate-limit.
 
 ## Installation
 

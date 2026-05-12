@@ -185,8 +185,8 @@ def process(raw_payload: str):
 ### Background Processing
 - Upload creates placeholder OCR Import immediately, returns record name
 - Uploaded file saved as private Frappe File attachment (enables retry on failure)
-- Processing runs on `long` queue with dynamic timeout (base 300s + stagger delay)
-- **Rate-limit stagger**: all ingestion paths (manual upload, email, Drive scan) pass `queue_position` to `gemini_process()`, which sleeps `position * 5s` (capped at 240s) before hitting Gemini API
+- Processing runs on `long` queue with `timeout=600s` — covers worst-case Gemini retry shape (5 attempts × up to 60s + up to 225s of 429 backoff)
+- **Rate-limit stagger lives at the caller**: batched ingestion pollers (`poll_drive_scan_folder`, `poll_drive_dn_folder`, `poll_drive_fleet_folder`, `email_monitor.poll_email_inbox`) `time.sleep(5)` between successive `frappe.enqueue` calls so workers don't all hit Gemini at once. Processor functions themselves no longer sleep — the full 600s job timeout is reserved for extraction + retries. Manual upload (single file) has no caller-side stagger; the request-layer 429 retry handles stampede.
 - Real-time progress updates via `frappe.publish_realtime()`
 - `frappe.db.commit()` required in enqueued jobs (with `# nosemgrep` comment)
 - Failures logged to Error Log, status set to "Error"
@@ -393,6 +393,8 @@ bench restart
 4. Copy the key (starts with `AIza...`)
 
 **Important — Free tier rate limits:** The free tier allows only 10 requests/minute and 500 requests/day. Batch uploads via Drive scan or email can easily exceed these limits, causing 429 errors and failed extractions. To avoid this, link a billing account to your Google AI project (Google AI Studio > Settings). This upgrades to Tier 1 (1,000 RPM, 10,000+ RPD) at minimal cost (~$0.0001 per invoice). Check your current limits at https://aistudio.google.com/rate-limit.
+
+**Watch out — Prepay credit depletion looks like a rate limit.** New Tier 1 accounts default to **Prepay** mode (credits topped up manually). When the prepay balance hits zero, Gemini returns `HTTP 429` with status `RESOURCE_EXHAUSTED` and message *"Your prepayment credits are depleted"* — same traceback as a rate-limit error, but the fix is funding, not throttling. Diagnose by reading the response body from the "Gemini API Rate Limit" / "Gemini API Error" entries in Error Log. Prevention: switch the project to **pay-as-you-go (post-pay)** in AI Studio → Billing, or set a low-balance alert on the billing account.
 
 ### OCR Settings
 - **Gemini API Key**: Your API key from Google AI Studio

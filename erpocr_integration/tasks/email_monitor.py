@@ -285,6 +285,7 @@ def _process_email(mail, email_id, email_account, settings, use_uid=False):
 		# Process each PDF (with per-PDF duplicate checking)
 		all_succeeded = True
 		pdfs_to_process = 0
+		enqueued_count = 0
 		has_in_progress = False
 		for pdf_content, filename, attachment_content_type in pdfs:
 			# Per-PDF duplicate check: skip this PDF if already successfully processed
@@ -371,22 +372,28 @@ def _process_email(mail, email_id, email_account, settings, use_uid=False):
 
 				frappe.db.commit()  # nosemgrep
 
-				# Enqueue Gemini processing with stagger to avoid rate-limit stampede.
-				# pdfs_to_process was already incremented, so subtract 1 for 0-based position.
-				queue_pos = pdfs_to_process - 1
-				stagger_delay = min(queue_pos * 5, 240)
+				# Caller-side stagger: sleep 5s before every enqueue after the
+				# first SUCCESSFUL one, so background workers don't all hit
+				# Gemini at once. enqueued_count only counts successful enqueues,
+				# so earlier-skipped attachments (magic-byte fail, etc.) don't
+				# trigger an unnecessary sleep.
+				if enqueued_count > 0:
+					import time
+
+					time.sleep(5)
+
 				frappe.enqueue(
 					"erpocr_integration.api.gemini_process",
 					queue="long",
-					timeout=300 + stagger_delay,
+					timeout=600,
 					pdf_content=pdf_content,
 					filename=filename,
 					ocr_import_name=ocr_import.name,
 					source_type="Gemini Email",
 					uploaded_by=uploaded_by,
 					mime_type=file_mime_type,
-					queue_position=queue_pos,
 				)
+				enqueued_count += 1
 
 				frappe.logger().info(
 					f"Email monitoring: Created OCR Import {ocr_import.name} and enqueued '{filename}' from email '{subject}'"

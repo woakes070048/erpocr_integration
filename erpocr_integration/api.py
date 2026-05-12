@@ -130,30 +130,22 @@ def upload_pdf():
 	).insert(ignore_permissions=True)
 	frappe.db.commit()
 
-	# Stagger Gemini API calls to avoid rate-limit stampede when uploading
-	# multiple files simultaneously. Each queued job waits its turn.
-	pending_count = frappe.db.count(
-		"OCR Import",
-		filters={"status": "Pending", "name": ["!=", ocr_import.name]},
-	)
-	queue_position = int(pending_count or 0)
-	# Cap stagger delay so job doesn't time out before extraction starts
-	stagger_delay = min(queue_position * 5, 240)
-	job_timeout = 300 + stagger_delay
-
-	# Enqueue background processing
+	# Enqueue background processing. Stagger is handled at ingestion callers
+	# (Drive scan, email monitor) by sleeping between successive enqueues. The
+	# 600s timeout covers extraction plus the worst-case retry shape in
+	# gemini_extract._call_gemini_api (5 attempts, up to 225s of backoff +
+	# 5 * 60s request timeouts).
 	try:
 		frappe.enqueue(
 			"erpocr_integration.api.gemini_process",
 			queue="long",
-			timeout=job_timeout,
+			timeout=600,
 			pdf_content=file_content,
 			filename=filename,
 			ocr_import_name=ocr_import.name,
 			source_type="Gemini Manual Upload",
 			uploaded_by=frappe.session.user,
 			mime_type=mime_type,
-			queue_position=queue_position,
 		)
 	except Exception:
 		# Enqueue failed — mark placeholder as Error so it doesn't sit as stale Pending
@@ -175,7 +167,6 @@ def gemini_process(
 	source_type: str = "Gemini Manual Upload",
 	uploaded_by: str | None = None,
 	mime_type: str = "application/pdf",
-	queue_position: int = 0,
 ):
 	"""
 	Background job to process PDF/image via Gemini API and create OCR Import(s).
@@ -197,24 +188,6 @@ def gemini_process(
 	frappe.set_user(uploaded_by or "Administrator")
 
 	try:
-		# Stagger Gemini API calls to avoid rate-limit stampede on batch uploads.
-		# Each job waits 5s per position in queue (e.g., 3rd upload waits 15s),
-		# capped at 240s to leave headroom within the worker timeout.
-		if queue_position > 0:
-			import time
-
-			wait_seconds = min(queue_position * 5, 240)
-			frappe.publish_realtime(
-				event="ocr_extraction_progress",
-				message={
-					"ocr_import": ocr_import_name,
-					"status": "Pending",
-					"message": f"Queued (position {queue_position + 1}). Starting in ~{wait_seconds}s...",
-				},
-				user=uploaded_by,
-			)
-			time.sleep(wait_seconds)
-
 		# Update status to "Extracting"
 		frappe.db.set_value("OCR Import", ocr_import_name, "status", "Pending")
 		frappe.db.commit()
@@ -646,14 +619,13 @@ def retry_gemini_extraction(ocr_import: str):
 		frappe.enqueue(
 			"erpocr_integration.api.gemini_process",
 			queue="long",
-			timeout=300,
+			timeout=600,
 			pdf_content=pdf_content,
 			filename=ocr_import_doc.source_filename,
 			ocr_import_name=ocr_import_doc.name,
 			source_type=ocr_import_doc.source_type,
 			uploaded_by=frappe.session.user,
 			mime_type=file_mime_type,
-			queue_position=0,
 		)
 	except Exception:
 		# Enqueue failed — revert to Error so it doesn't sit as stale Pending

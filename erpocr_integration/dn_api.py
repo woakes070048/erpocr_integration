@@ -19,7 +19,6 @@ def dn_gemini_process(
 	filename: str,
 	ocr_dn_name: str,
 	mime_type: str = "application/pdf",
-	queue_position: int = 0,
 ):
 	"""
 	Background job: extract delivery note data via Gemini and populate OCR DN.
@@ -31,18 +30,10 @@ def dn_gemini_process(
 		filename: Original filename
 		ocr_dn_name: Name of the OCR Delivery Note record to update
 		mime_type: MIME type for Gemini API
-		queue_position: Position in queue for rate-limit staggering
 	"""
 	frappe.set_user("Administrator")
 
 	try:
-		# Stagger Gemini API calls
-		if queue_position > 0:
-			import time
-
-			wait_seconds = min(queue_position * 5, 240)
-			time.sleep(wait_seconds)
-
 		frappe.db.set_value("OCR Delivery Note", ocr_dn_name, "status", "Pending")
 		frappe.db.commit()  # nosemgrep
 
@@ -315,12 +306,11 @@ def retry_dn_extraction(ocr_dn: str):
 		frappe.enqueue(
 			"erpocr_integration.dn_api.dn_gemini_process",
 			queue="long",
-			timeout=300,
+			timeout=600,
 			file_content=file_content,
 			filename=source_filename,
 			ocr_dn_name=ocr_dn_doc.name,
 			mime_type=file_mime_type,
-			queue_position=0,
 		)
 	except Exception:
 		ocr_dn_doc.db_set("status", "Error")

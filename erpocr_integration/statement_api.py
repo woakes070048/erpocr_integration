@@ -11,18 +11,11 @@ def statement_gemini_process(
 	source_type: str = "Gemini Drive Scan",
 	uploaded_by: str | None = None,
 	mime_type: str = "application/pdf",
-	queue_position: int = 0,
 ):
 	"""Background job: extract statement data via Gemini, populate OCR Statement, reconcile."""
 	frappe.set_user(uploaded_by or "Administrator")
 
 	try:
-		if queue_position > 0:
-			import time
-
-			wait_seconds = min(queue_position * 5, 240)
-			time.sleep(wait_seconds)
-
 		frappe.db.set_value("OCR Statement", ocr_statement_name, "status", "Extracting")
 		frappe.db.commit()  # nosemgrep
 

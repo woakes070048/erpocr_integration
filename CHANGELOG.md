@@ -2,6 +2,29 @@
 
 All notable changes to the ERPNext OCR Integration app are documented here. Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] — 2026-05-12
+
+Reliability fix for the Gemini ingestion path: a Drive batch on a fresh Empire Vending site surfaced `rq.timeouts.JobTimeoutException` on a large PDF because rate-limit stagger was being double-counted (caller-side `time.sleep(5)` between enqueues **and** in-job `time.sleep(queue_position * 5)` inside each worker), and the 300s job timeout left no headroom for the 5-attempt × ≤60s + ≤225s retry shape in `_call_gemini_api`. Documentation also gained a prepay-credit-depletion warning — the same incident's first failure mode was a 429 that read as a rate-limit error but was actually a depleted Tier 1 prepay balance.
+
+### Stagger refactor — single source of truth at the caller
+- Removed in-job stagger sleep from all four processor functions: `gemini_process` ([api.py](erpocr_integration/api.py)), `dn_gemini_process` ([dn_api.py](erpocr_integration/dn_api.py)), `fleet_gemini_process` ([fleet_api.py](erpocr_integration/fleet_api.py)), `statement_gemini_process` ([statement_api.py](erpocr_integration/statement_api.py)). Dropped the `queue_position` kwarg from those signatures and from four helpers in [drive_integration.py](erpocr_integration/tasks/drive_integration.py) (`_process_scan_file`, `_process_statement_file`, `_process_dn_scan_file`, `_process_fleet_scan_file`).
+- Stagger now lives only at the batched ingestion callers — `poll_drive_scan_folder`, `poll_drive_dn_folder`, `poll_drive_fleet_folder`, and the email_monitor loop — which already (or now) sleep 5s between successive `frappe.enqueue` calls. Drive pollers had this caller-side sleep already; email_monitor gained a new caller-side `time.sleep(5)` gated on a fresh `enqueued_count` counter.
+- Manual upload ([api.py](erpocr_integration/api.py) upload endpoint) intentionally has no caller-side stagger — UI uploads are one-at-a-time and the request-layer 429 retry handles the rare burst case without an extra layer of throttling.
+
+### Job timeout raised from 300s to 600s on Gemini extraction enqueues
+- All 10 Gemini-extraction enqueue sites (manual upload, manual retry, email monitor, four Drive scan paths, fleet retry, DN retry, fleet "Move to Invoice Pipeline" re-route) now use `timeout=600`. Covers the worst retry shape in `_call_gemini_api`: up to 4 attempts × 60s request timeout + 15s + 30s + 60s + 120s of 429 backoff sleep + a final ~60s successful call ≈ 525s.
+- The unrelated PI-submit statement-reconciliation refresh in [statement_api.py](erpocr_integration/statement_api.py) stays at `timeout=300` — it doesn't run Gemini retries.
+
+### email_monitor counter fix — skipped attachments no longer trigger a wasted 5s sleep
+- Caught by Codex review pass on the v1.1.2 changes. `pdfs_to_process` was incremented before the magic-byte validation, so a failed first attachment would leave the counter at 1 and cause the next successful attachment's enqueue to sleep 5s as if it were the second item. New `enqueued_count` increments only after `frappe.enqueue` succeeds, and the stagger gate now reads `enqueued_count > 0`. `pdfs_to_process` keeps its existing semantic for the "move email to processed" decision.
+
+### Documentation — prepay credit depletion warning
+- [README.md](README.md) and [CLAUDE.md](CLAUDE.md) now warn that new Google AI Studio Tier 1 accounts default to **Prepay** mode, where a depleted balance returns `HTTP 429` with `RESOURCE_EXHAUSTED` and the message *"Your prepayment credits are depleted"* — visually indistinguishable in our retry logs from a true rate-limit error. Prevention: switch the linked Google Cloud Billing account to pay-as-you-go in AI Studio → Billing, or set a low-balance alert.
+- Corrected README's stale "free tier: 15 requests/minute" to the actual 10 RPM / 500 RPD figure.
+
+### Tests
+- Dropped two `test_fleet_api` tests (`test_stagger_with_queue_position`, `test_stagger_capped_at_240`) that asserted the removed in-job `time.sleep` behaviour. 619 tests still pass; ruff and ruff-format clean.
+
 ## [1.1.1] — 2026-05-07
 
 Operational polish for the OCR Fleet Slip Reader role and a defence-in-depth fix on `unlink_document` across all three OCR pipelines.

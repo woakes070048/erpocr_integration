@@ -332,11 +332,11 @@ def poll_drive_scan_folder():
 	enqueued_count = 0
 	for file_info in files:
 		try:
-			was_enqueued = _process_scan_file(service, file_info, settings, queue_position=enqueued_count)
+			was_enqueued = _process_scan_file(service, file_info, settings)
 			if was_enqueued:
 				enqueued_count += 1
 				# Stagger requests: wait 5s between enqueues so background workers
-				# don't all hit Gemini at once (free tier = 15 RPM)
+				# don't all hit Gemini at once (free tier = 10 RPM)
 				time.sleep(5)
 		except Exception as e:
 			frappe.log_error(
@@ -348,7 +348,7 @@ def poll_drive_scan_folder():
 		frappe.logger().info(f"Drive scan: Enqueued {enqueued_count} file(s) for processing")
 
 
-def _process_scan_file(service, file_info: dict, settings, queue_position: int = 0) -> bool:
+def _process_scan_file(service, file_info: dict, settings) -> bool:
 	"""
 	Process a single file (PDF or image) from the Drive scan folder.
 
@@ -453,7 +453,6 @@ def _process_scan_file(service, file_info: dict, settings, queue_position: int =
 			file_mime_type,
 			drive_file_id,
 			settings,
-			queue_position,
 			_next_retry_count,
 			classification_confidence,
 		)
@@ -474,20 +473,19 @@ def _process_scan_file(service, file_info: dict, settings, queue_position: int =
 	ocr_import.insert(ignore_permissions=True)
 	frappe.db.commit()  # nosemgrep
 
-	# Enqueue Gemini extraction
+	# Enqueue Gemini extraction. Caller (poll_drive_scan_folder) staggers between
+	# successive enqueues, so the worker's 300s timeout is for extraction + retries.
 	try:
-		stagger_delay = min(queue_position * 5, 240)
 		frappe.enqueue(
 			"erpocr_integration.api.gemini_process",
 			queue="long",
-			timeout=300 + stagger_delay,
+			timeout=600,
 			pdf_content=pdf_content,
 			filename=filename,
 			ocr_import_name=ocr_import.name,
 			source_type="Gemini Drive Scan",
 			uploaded_by="Administrator",
 			mime_type=file_mime_type,
-			queue_position=queue_position,
 		)
 		frappe.logger().info(f"Drive scan: Queued {filename} for processing")
 		return True
@@ -505,7 +503,6 @@ def _process_statement_file(
 	mime_type: str,
 	drive_file_id: str,
 	settings,
-	queue_position: int,
 	retry_count: int,
 	confidence: float,
 ) -> bool:
@@ -527,18 +524,16 @@ def _process_statement_file(
 	frappe.db.commit()  # nosemgrep
 
 	try:
-		stagger_delay = min(queue_position * 5, 240)
 		frappe.enqueue(
 			"erpocr_integration.statement_api.statement_gemini_process",
 			queue="long",
-			timeout=300 + stagger_delay,
+			timeout=600,
 			file_content=pdf_content,
 			filename=filename,
 			ocr_statement_name=ocr_statement.name,
 			source_type="Gemini Drive Scan",
 			uploaded_by="Administrator",
 			mime_type=mime_type,
-			queue_position=queue_position,
 		)
 		frappe.logger().info(f"Drive scan: Queued statement {filename} for processing")
 		return True
@@ -793,7 +788,7 @@ def poll_drive_dn_folder():
 	enqueued_count = 0
 	for file_info in files:
 		try:
-			was_enqueued = _process_dn_scan_file(service, file_info, settings, queue_position=enqueued_count)
+			was_enqueued = _process_dn_scan_file(service, file_info, settings)
 			if was_enqueued:
 				enqueued_count += 1
 				time.sleep(5)
@@ -808,7 +803,7 @@ def poll_drive_dn_folder():
 		frappe.logger().info(f"DN Drive scan: Enqueued {enqueued_count} file(s) for processing")
 
 
-def _process_dn_scan_file(service, file_info: dict, settings, queue_position: int = 0) -> bool:
+def _process_dn_scan_file(service, file_info: dict, settings) -> bool:
 	"""
 	Process a single file from the Drive DN scan folder.
 
@@ -906,16 +901,14 @@ def _process_dn_scan_file(service, file_info: dict, settings, queue_position: in
 
 	# Enqueue DN Gemini extraction
 	try:
-		stagger_delay = min(queue_position * 5, 240)
 		frappe.enqueue(
 			"erpocr_integration.dn_api.dn_gemini_process",
 			queue="long",
-			timeout=300 + stagger_delay,
+			timeout=600,
 			file_content=file_content,
 			filename=filename,
 			ocr_dn_name=ocr_dn.name,
 			mime_type=file_mime_type,
-			queue_position=queue_position,
 		)
 		frappe.logger().info(f"DN Drive scan: Queued {filename} for DN processing")
 		return True
@@ -971,9 +964,7 @@ def poll_drive_fleet_folder():
 	enqueued_count = 0
 	for file_info in files:
 		try:
-			was_enqueued = _process_fleet_scan_file(
-				service, file_info, settings, queue_position=enqueued_count
-			)
+			was_enqueued = _process_fleet_scan_file(service, file_info, settings)
 			if was_enqueued:
 				enqueued_count += 1
 				time.sleep(5)
@@ -988,7 +979,7 @@ def poll_drive_fleet_folder():
 		frappe.logger().info(f"Fleet Drive scan: Enqueued {enqueued_count} file(s) for processing")
 
 
-def _process_fleet_scan_file(service, file_info: dict, settings, queue_position: int = 0) -> bool:
+def _process_fleet_scan_file(service, file_info: dict, settings) -> bool:
 	"""
 	Process a single file from the Drive fleet scan folder.
 
@@ -1085,16 +1076,14 @@ def _process_fleet_scan_file(service, file_info: dict, settings, queue_position:
 
 	# Enqueue fleet Gemini extraction
 	try:
-		stagger_delay = min(queue_position * 5, 240)
 		frappe.enqueue(
 			"erpocr_integration.fleet_api.fleet_gemini_process",
 			queue="long",
-			timeout=300 + stagger_delay,
+			timeout=600,
 			file_content=file_content,
 			filename=filename,
 			ocr_fleet_name=ocr_fleet.name,
 			mime_type=file_mime_type,
-			queue_position=queue_position,
 		)
 		frappe.logger().info(f"Fleet Drive scan: Queued {filename} for fleet processing")
 		return True
